@@ -1,4 +1,4 @@
-const CACHE_NAME = 'waitlist-v2-shell-2';
+const CACHE_NAME = 'waitlist-v2-shell-3';
 const APP_SHELL = [
   './wishlist.html',
   './history.html',
@@ -11,6 +11,7 @@ const APP_SHELL = [
   './assets/app.js',
   './assets/icon-192.png',
   './assets/icon-512.png',
+  './assets/product-placeholder.svg',
   './partials/header.html',
   './partials/footer.html'
 ];
@@ -38,11 +39,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  event.respondWith(caches.match(request).then(cached => {
-    const network = fetch(request).then(response => {
-      if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
-      return response;
-    });
-    return cached || network;
-  }));
+  event.respondWith(fetch(request).then(response => {
+    if (response.ok) caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
+    return response;
+  }).catch(() => caches.match(request)));
 });

@@ -55,6 +55,13 @@ function toast(message) {
   window.__toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
+document.addEventListener('error', event => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement) || image.dataset.fallbackApplied) return;
+  image.dataset.fallbackApplied = 'true';
+  image.src = 'assets/product-placeholder.svg';
+}, true);
+
 function daysSince(date) {
   return Math.max(0, Math.floor((Date.now() - new Date(date)) / 86400000));
 }
@@ -66,6 +73,11 @@ function escapeHtml(value = '') {
 function formatMoney(value = 0) {
   const currency = WAITLIST_MOCK.settings?.currency || 'USD';
   return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function extractProductUrl(value = '') {
+  const match = String(value).match(/https?:\/\/[^\s<>"']+/i);
+  return match ? match[0].replace(/[),.;!?\]}]+$/g, '') : '';
 }
 
 function starsTemplate(rating = 0, interactive = false, id = '') {
@@ -131,6 +143,8 @@ function initWishlist() {
   let activeSavingsBucketId = null;
   let savingsTransactionMode = 'add';
   let pendingSavingsItem = null;
+  let wishlistSelectMode = false;
+  const selectedWishlistIds = new Set();
   const allItems = () => [...items, ...historyItems];
   const persistWishlistState = () => {
     WAITLIST_MOCK.wishlist = items.filter(item => item.status === 'waiting');
@@ -179,6 +193,12 @@ function initWishlist() {
     visible.sort((a,b) => sort === 'priceLow' ? a.price-b.price : sort === 'priceHigh' ? b.price-a.price : sort === 'wanted' ? (b.wantCount || 0)-(a.wantCount || 0) : new Date(b.addedAt || b.date)-new Date(a.addedAt || a.date));
     grid.innerHTML = visible.length ? visible.map(cardTemplate).join('') : '<div class="empty-state"><span>♡</span><h3>No wishes found</h3><p>Try another filter or search.</p></div>';
     $$('.product-card', grid).forEach(card => {
+      const itemId = Number(card.dataset.id);
+      if (wishlistSelectMode) {
+        card.classList.add('select-mode');
+        card.insertAdjacentHTML('afterbegin', `<span class="wishlist-select-check" aria-hidden="true">${selectedWishlistIds.has(itemId) ? '✓' : ''}</span>`);
+        card.classList.toggle('selected', selectedWishlistIds.has(itemId));
+      }
       let holdTimer;
       let held = false;
       const enterManageMode = () => {
@@ -194,6 +214,12 @@ function initWishlist() {
       ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => card.addEventListener(type, () => clearTimeout(holdTimer)));
       card.addEventListener('contextmenu', event => { event.preventDefault(); enterManageMode(); });
       card.addEventListener('click', event => {
+        if (wishlistSelectMode) {
+          selectedWishlistIds.has(itemId) ? selectedWishlistIds.delete(itemId) : selectedWishlistIds.add(itemId);
+          render();
+          updateWishlistSelectionBar();
+          return;
+        }
         if (event.target.closest('.card-manage-select')) {
           event.stopPropagation();
           openCollectionBuilder('organize', Number(card.dataset.id));
@@ -364,6 +390,16 @@ function initWishlist() {
     $('#productFetchStatus').textContent = '';
     $('#productFetchStatus').classList.remove('error');
   });
+  $('#clearProductUrl').addEventListener('click', () => {
+    $('#addProductUrl').value = '';
+    $('#addProductName').value = '';
+    $('#addProductPrice').value = '';
+    $('#addProductImage').value = '';
+    $('#getProductDetails').classList.add('hidden');
+    $('#productFetchPreview').classList.add('hidden');
+    $('#productFetchStatus').textContent = '';
+    $('#addProductUrl').focus();
+  });
   $('#addProductImage').addEventListener('input', event => {
     if (!event.target.value.trim()) return;
     $('#productPreviewImage').src = event.target.value.trim();
@@ -371,8 +407,9 @@ function initWishlist() {
     $('#productFetchPreview').classList.remove('hidden');
   });
   $('#getProductDetails').addEventListener('click', async () => {
-    const url = $('#addProductUrl').value.trim();
+    const url = extractProductUrl($('#addProductUrl').value);
     if (!url) return;
+    $('#addProductUrl').value = url;
     const button = $('#getProductDetails');
     button.disabled = true;
     button.textContent = 'Getting details…';
@@ -631,6 +668,36 @@ function initWishlist() {
     toast('Record deleted.');
   }
 
+  function updateWishlistSelectionBar() {
+    $('#wishlistSelectionBar').classList.toggle('hidden', !wishlistSelectMode);
+    $('#wishlistSelectedCount').textContent = `${selectedWishlistIds.size} selected`;
+    $('#deleteSelectedWishes').disabled = selectedWishlistIds.size === 0;
+    $('#toggleWishlistSelection').textContent = wishlistSelectMode ? 'Done' : 'Select';
+  }
+  $('#toggleWishlistSelection').addEventListener('click', () => {
+    wishlistSelectMode = !wishlistSelectMode;
+    selectedWishlistIds.clear();
+    updateWishlistSelectionBar();
+    render();
+  });
+  $('#cancelWishlistSelection').addEventListener('click', () => {
+    wishlistSelectMode = false;
+    selectedWishlistIds.clear();
+    updateWishlistSelectionBar();
+    render();
+  });
+  $('#deleteSelectedWishes').addEventListener('click', () => {
+    if (!selectedWishlistIds.size || !confirm(`Delete ${selectedWishlistIds.size} selected records? This cannot be undone.`)) return;
+    items = items.filter(item => !selectedWishlistIds.has(item.id));
+    historyItems.splice(0, historyItems.length, ...historyItems.filter(item => !selectedWishlistIds.has(item.id)));
+    selectedWishlistIds.clear();
+    wishlistSelectMode = false;
+    persistWishlistState();
+    updateWishlistSelectionBar();
+    render(); renderCollections(); updateJourney();
+    toast('Selected records deleted.');
+  });
+
   $('#closeCollectionBuilder').onclick = () => $('#collectionBuilderModal').classList.remove('open');
   $('#selectAllWishes').onclick = () => {
     const pickerItems = collectionPickerItems();
@@ -677,13 +744,21 @@ function initWishlist() {
     $('#ultimateBucketGrid').innerHTML = ultimateBuckets.map(bucket => {
       const percent = Math.min(100, Math.round(bucket.points / bucket.target * 100));
       const progress = `<div class="progress-track"><div class="progress-fill" style="width:${percent}%"></div></div><div class="goal-values"><strong>${formatMoney(bucket.points)} saved</strong><span>${formatMoney(bucket.target)} goal</span></div>`;
-      return `<article class="ultimate-bucket-card" data-bucket-id="${bucket.id}"><div class="bucket-card-heading"><div><span class="bucket-type">Goal</span><h2>${escapeHtml(bucket.name)}</h2></div><strong>${percent}%</strong></div>${bucket.description ? `<p>${escapeHtml(bucket.description)}</p>` : ''}${progress}<div class="bucket-actions"><button class="button secondary bucket-add-savings" data-bucket-id="${bucket.id}">＋ Add</button><button class="button ghost bucket-subtract-savings" data-bucket-id="${bucket.id}">− Subtract</button></div></article>`;
+      return `<article class="ultimate-bucket-card" data-bucket-id="${bucket.id}"><div class="bucket-card-heading"><div><span class="bucket-type">Goal</span><h2>${escapeHtml(bucket.name)}</h2></div><div class="bucket-head-actions"><strong>${percent}%</strong><button class="bucket-delete" data-bucket-id="${bucket.id}" aria-label="Delete ${escapeHtml(bucket.name)}">×</button></div></div>${bucket.description ? `<p>${escapeHtml(bucket.description)}</p>` : ''}${progress}<div class="bucket-actions"><button class="button secondary bucket-add-savings" data-bucket-id="${bucket.id}">＋ Add</button><button class="button ghost bucket-subtract-savings" data-bucket-id="${bucket.id}">− Subtract</button></div></article>`;
     }).join('');
     $$('.bucket-add-savings', $('#ultimateBucketGrid')).forEach(button => button.addEventListener('click', () => {
       openSavingsTransaction({ mode: 'add', bucketId: button.dataset.bucketId });
     }));
     $$('.bucket-subtract-savings', $('#ultimateBucketGrid')).forEach(button => button.addEventListener('click', () => {
       openSavingsTransaction({ mode: 'subtract', bucketId: button.dataset.bucketId });
+    }));
+    $$('.bucket-delete', $('#ultimateBucketGrid')).forEach(button => button.addEventListener('click', () => {
+      const bucket = ultimateBuckets.find(entry => entry.id === button.dataset.bucketId);
+      if (!bucket || !confirm(`Delete “${bucket.name}”? Its ${formatMoney(bucket.points)} balance will also be removed.`)) return;
+      const index = ultimateBuckets.indexOf(bucket);
+      ultimateBuckets.splice(index, 1);
+      persistWishlistState(); refreshSavingsBucketSelect(); renderUltimateBuckets();
+      toast('Goal deleted.');
     }));
   };
   const closeSavingsTransaction = () => {
@@ -826,6 +901,19 @@ function initWishlist() {
     selectedCollectionItemIds.clear();
     render(); renderCollections(); updateJourney(); openCollection(currentCollectionId, false);
     toast(`${removedCount} ${removedCount === 1 ? 'item' : 'items'} removed from collection.`);
+  });
+  $('#deleteCollection').addEventListener('click', () => {
+    const collection = collections.find(entry => entry.id === currentCollectionId);
+    if (!collection || !confirm(`Delete “${collection.name}”? Its items will stay in your wishlist.`)) return;
+    allItems().forEach(item => { if (item.collectionId === currentCollectionId) item.collectionId = null; });
+    const index = collections.indexOf(collection);
+    collections.splice(index, 1);
+    currentCollectionId = null;
+    persistWishlistState(); refreshCollectionSelects(); collectionFilterUi.refresh(); addCollectionUi.refresh();
+    render(); renderCollections(); updateJourney();
+    history.replaceState({}, '', location.pathname);
+    closeCollectionPage();
+    toast('Collection deleted. Items were kept.');
   });
   $('#addToCollection').addEventListener('click', () => {
     if (currentCollectionId) $('#collectionAddModal').classList.add('open');

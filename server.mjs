@@ -12,7 +12,7 @@ const MAX_HTML_BYTES = 6 * 1024 * 1024;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 20;
 const previewRequests = new Map();
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 const SECURITY_HEADERS = {
   'content-security-policy': "default-src 'self'; img-src 'self' https: data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
@@ -54,7 +54,10 @@ function isPrivateIp(address) {
 }
 
 async function validateRemoteUrl(input) {
-  const url = new URL(input);
+  const match = String(input || '').match(/https?:\/\/[^\s<>"']+/i);
+  if (!match) throw new Error('No product link was found in the shared text.');
+  const cleaned = match[0].replace(/[),.;!?\]}]+$/g, '');
+  const url = new URL(cleaned);
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only http and https product links are supported.');
   if (url.username || url.password) throw new Error('Links containing credentials are not supported.');
   if (url.hostname === 'localhost' || url.hostname.endsWith('.local')) throw new Error('Local links are not supported.');

@@ -248,6 +248,26 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .v2-tab.active { color: var(--text); }
 .v2-tab.active::after { background: var(--text); }
 .v2-panel { display: none; animation: panelIn .22s ease; }
+.wishlist-compact-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 22px 0 14px; }
+.wishlist-compact-head h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 1.75rem); letter-spacing: .08em; text-transform: uppercase; }
+.wishlist-compact-head > div { display: flex; align-items: center; gap: 10px; }
+.history-shortcut { padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-weight: 750; }
+.wishlist-toolbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.wishlist-select-button { min-height: 48px; padding: 0 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--text); font-weight: 750; cursor: pointer; }
+.wishlist-selection-bar { position: sticky; top: 142px; z-index: 17; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -8px 0 14px; padding: 10px 12px 10px 18px; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(18px); }
+.wishlist-selection-bar > div { display: flex; gap: 8px; }
+.wishlist-selection-bar .button { padding: 9px 14px; }
+.wishlist-select-check { position: absolute; top: 12px; left: 12px; z-index: 8; display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid #fff; border-radius: 9px; background: rgba(20,18,16,.35); color: #fff; font-weight: 900; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.visual-card.select-mode { cursor: pointer; }
+.visual-card.select-mode.selected { opacity: .68; transform: scale(.975); }
+.visual-card.select-mode.selected .wishlist-select-check { background: var(--text); }
+.input-with-clear { position: relative; display: block; }
+.input-with-clear input { padding-right: 52px; }
+.input-with-clear button { position: absolute; top: 50%; right: 10px; width: 36px; height: 36px; transform: translateY(-50%); border: 0; border-radius: 50%; background: var(--line); color: var(--text); font-size: 1.25rem; cursor: pointer; }
+.collection-delete, .bucket-delete { border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.collection-delete { min-height: 48px; padding: 0 15px; border-radius: 999px; font-weight: 750; }
+.bucket-head-actions { display: flex; align-items: center; gap: 12px; }
+.bucket-delete { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-size: 1.15rem; }
 .v2-panel.active { display: block; }
 @keyframes panelIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
 .v2-page-heading { padding: 42px 0 26px; }
@@ -458,6 +478,8 @@ html[data-theme="dark"] { color-scheme: dark; background: #171514; }
   position: relative;
   z-index: 5;
 }
+.v2-panel[data-panel-view="wishlist"] .v2-search { min-height: 58px; }
+.v2-panel[data-panel-view="wishlist"] .v2-filterbar { margin-top: 10px; margin-bottom: 14px; }
 .v2-filterbar {
   position: sticky;
   top: 74px;
@@ -616,6 +638,16 @@ html[data-theme="dark"] { color-scheme: dark; background: #171514; }
 }
 
 @media (max-width: 620px) {
+  input, select, textarea { font-size: 16px !important; }
+  .wishlist-compact-head { margin-top: 10px; margin-bottom: 10px; }
+  .wishlist-compact-head h1 { font-size: 1.15rem; }
+  .history-shortcut { padding: 8px 11px; font-size: .8rem; }
+  .wishlist-compact-head .context-add-button { width: 42px; height: 42px; }
+  .v2-panel[data-panel-view="wishlist"] .v2-search { min-height: 52px; }
+  .v2-panel[data-panel-view="wishlist"] .v2-filterbar { margin-top: 8px; margin-bottom: 10px; padding: 7px; }
+  .wishlist-select-button { min-height: 44px; padding: 0 12px; }
+  .wishlist-selection-bar { top: 124px; }
+  .collection-delete { min-height: 44px; padding: 0 11px; font-size: .78rem; }
   .v2-filterbar { top: 63px; border-radius: 18px; }
   .v2-wish-grid:not(.list) { columns: 2; column-gap: 9px; }
   .v2-wish-grid:not(.list) .visual-card { margin-bottom: 9px; border-radius: 18px; }

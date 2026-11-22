@@ -36,7 +36,7 @@
       </section>
 
       <section class="v2-panel active" data-panel-view="wishlist" aria-label="Wishlist">
-        <div class="v2-page-heading minimal-page-heading heading-with-action"><h1>Wishlist</h1><button class="context-add-button primary" id="addWishFromPage" aria-label="Add wishlist item">+</button></div>
+        <div class="wishlist-compact-head"><h1>Wishlist</h1><div><a class="history-shortcut" href="history.html">History</a><button class="context-add-button primary" id="addWishFromPage" aria-label="Add wishlist item">+</button></div></div>
         <label class="v2-search"><span>⌕</span><input id="wishlistSearch" type="search" placeholder="Search your wishes" aria-label="Search wishlist"></label>
         <div class="v2-filterbar filter-summary-bar">
           <select id="wishlistFilter" aria-label="Quick status filter">
@@ -45,8 +45,9 @@
             <option value="bought">Bought</option>
             <option value="letGo">Let go</option>
           </select>
-          <button class="filter-drawer-button" id="openFilters" aria-label="Open filters">☷</button>
+          <div class="wishlist-toolbar-actions"><button class="wishlist-select-button" id="toggleWishlistSelection" type="button">Select</button><button class="filter-drawer-button" id="openFilters" aria-label="Open filters">☷</button></div>
         </div>
+        <div class="wishlist-selection-bar hidden" id="wishlistSelectionBar"><span id="wishlistSelectedCount">0 selected</span><div><button class="button ghost" id="cancelWishlistSelection" type="button">Cancel</button><button class="button" id="deleteSelectedWishes" type="button" disabled>Delete</button></div></div>
         <section id="wishlistGrid" class="product-grid v2-wish-grid"></section>
       </section>
 
@@ -60,7 +61,7 @@
     <section class="collection-page" id="collectionPage" aria-label="Collection">
       <div class="collection-page-toolbar">
         <button class="collection-back" id="collectionBack" aria-label="Back"><span>←</span></button>
-        <div class="collection-toolbar-actions"><button class="collection-context-add" id="addToCollection" aria-label="Add item">+</button><button class="collection-edit" id="editCollection"><span>✓</span> Select</button></div>
+        <div class="collection-toolbar-actions"><button class="collection-context-add" id="addToCollection" aria-label="Add item">+</button><button class="collection-edit" id="editCollection"><span>✓</span> Select</button><button class="collection-delete" id="deleteCollection" aria-label="Delete collection">Delete</button></div>
       </div>
       <header class="collection-page-header">
         <p class="eyebrow">Collection</p>
@@ -101,7 +102,7 @@
       <button class="icon-button close" id="closeAdd" aria-label="Close">×</button>
       <h2>Add to wishlist</h2>
       <form id="addForm" class="form-grid">
-        <label class="full">Product link <span class="optional">Optional</span><input id="addProductUrl" name="productUrl" type="url" placeholder="https://example.com/product"></label>
+        <label class="full">Product link <span class="optional">Optional</span><span class="input-with-clear"><input id="addProductUrl" name="productUrl" type="text" inputmode="url" placeholder="Paste a link or shared product text"><button id="clearProductUrl" type="button" aria-label="Clear product link">×</button></span></label>
         <div class="product-fetch-actions full"><button class="button secondary hidden" id="getProductDetails" type="button">Get product details</button><button class="button ghost" id="addProductManually" type="button">Add manually</button><span id="productFetchStatus" aria-live="polite"></span></div>
         <div class="product-fetch-preview full hidden" id="productFetchPreview"><img id="productPreviewImage" alt="Product preview"><div><span>Product found</span><strong id="productPreviewName"></strong></div></div>
         <div class="add-item-fields full hidden" id="addItemFields">
