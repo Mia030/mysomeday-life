@@ -1,6 +1,6 @@
 (function createWaitlistStore() {
-  const STORAGE_KEY = 'waitlist-v2-data';
-  const SCHEMA_VERSION = 1;
+  const STORAGE_KEY = 'waitlist-v2-data-v2';
+  const SCHEMA_VERSION = 2;
   const clone = value => JSON.parse(JSON.stringify(value));
   const defaults = clone(window.WAITLIST_MOCK || {});
 

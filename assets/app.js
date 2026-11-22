@@ -63,7 +63,8 @@ document.addEventListener('error', event => {
 }, true);
 
 function daysSince(date) {
-  return Math.max(0, Math.floor((Date.now() - new Date(date)) / 86400000));
+  if (!date || Number.isNaN(new Date(date).getTime())) return 1;
+  return Math.max(1, Math.floor((Date.now() - new Date(date)) / 86400000) + 1);
 }
 
 function escapeHtml(value = '') {
@@ -127,8 +128,9 @@ function enhanceStandaloneSelect(select) {
 }
 
 function cardTemplate(item) {
+  const waitingDays = item.wishlistDays ?? daysSince(item.addedAt || item.date);
   return `<article class="product-card visual-card reveal-card" data-id="${item.id}" tabindex="0" role="button" aria-label="Open ${item.name}">
-    <div class="product-image-wrap"><img src="${item.image}" alt="">${item.favorite ? '<span class="favorite-badge" aria-label="Favorite">♥</span>' : ''}<span class="product-hover-meta"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price ?? item.saved)}</small></span></div>
+    <div class="product-image-wrap"><img src="${item.image}" alt=""><span class="wish-image-metrics">Day ${waitingDays}<b>♥ ${item.wantCount || 0}</b></span>${item.favorite ? '<span class="favorite-badge" aria-label="Favorite">♥</span>' : ''}<span class="product-hover-meta"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price ?? item.saved)}</small></span></div>
     <div class="card-manage-overlay"><span>Manage wish</span><div><button class="card-manage-select" type="button">Select</button><button class="card-manage-delete" type="button">Delete</button></div></div>
   </article>`;
 }
@@ -190,8 +192,11 @@ function initWishlist() {
       : items;
     if (collectionFilter !== 'all') visible = visible.filter(item => item.collectionId === collectionFilter);
     visible = visible.filter(item => item.name.toLowerCase().includes(query));
-    visible.sort((a,b) => sort === 'priceLow' ? a.price-b.price : sort === 'priceHigh' ? b.price-a.price : sort === 'wanted' ? (b.wantCount || 0)-(a.wantCount || 0) : new Date(b.addedAt || b.date)-new Date(a.addedAt || a.date));
-    grid.innerHTML = visible.length ? visible.map(cardTemplate).join('') : '<div class="empty-state"><span>♡</span><h3>No wishes found</h3><p>Try another filter or search.</p></div>';
+    visible.sort((a,b) => sort === 'priceLow' ? a.price-b.price : sort === 'priceHigh' ? b.price-a.price : sort === 'waiting' ? (b.wishlistDays ?? daysSince(b.addedAt || b.date)) - (a.wishlistDays ?? daysSince(a.addedAt || a.date)) : sort === 'wanted' ? (b.wantCount || 0)-(a.wantCount || 0) : new Date(b.addedAt || b.date)-new Date(a.addedAt || a.date));
+    const trulyEmpty = items.length === 0 && filter === 'all' && collectionFilter === 'all' && !query;
+    grid.classList.toggle('empty-wish-grid', !visible.length);
+    $('#emptyWishHint').classList.toggle('hidden', !trulyEmpty);
+    grid.innerHTML = visible.length ? visible.map(cardTemplate).join('') : `<div class="empty-state actionable-empty"><span>♡</span><h3>${trulyEmpty ? 'No wishes yet' : 'No wishes found'}</h3><p>${trulyEmpty ? 'Use the + above to paste a product link or add an item.' : 'Try another filter or search.'}</p></div>`;
     $$('.product-card', grid).forEach(card => {
       const itemId = Number(card.dataset.id);
       if (wishlistSelectMode) {
@@ -222,7 +227,11 @@ function initWishlist() {
         }
         if (event.target.closest('.card-manage-select')) {
           event.stopPropagation();
-          openCollectionBuilder('organize', Number(card.dataset.id));
+          wishlistSelectMode = true;
+          selectedWishlistIds.clear();
+          selectedWishlistIds.add(itemId);
+          render();
+          updateWishlistSelectionBar();
           return;
         }
         if (event.target.closest('.card-manage-delete')) {
@@ -247,6 +256,11 @@ function initWishlist() {
     });
     revealCards(grid);
   };
+
+  document.addEventListener('pointerdown', event => {
+    if (event.target.closest('.product-card')) return;
+    $$('.product-card.manage-open', grid).forEach(card => card.classList.remove('manage-open'));
+  });
 
   function revealCards(root) {
     const cards = $$('.reveal-card', root);
@@ -305,7 +319,9 @@ function initWishlist() {
     }
 
     function updateSelect() {
-      trigger.innerHTML = `<span>${select.options[select.selectedIndex].textContent}</span><span class="select-chevron">⌄</span>`;
+      const selectedOption = select.options[select.selectedIndex];
+      trigger.innerHTML = `<span>${selectedOption?.textContent || 'No options yet'}</span><span class="select-chevron">⌄</span>`;
+      trigger.disabled = !selectedOption;
       $$('.frost-select-option', menu).forEach(option => {
         const selected = option.dataset.value === select.value;
         option.classList.toggle('selected', selected);
@@ -508,8 +524,8 @@ function initWishlist() {
       ? `<div class="outcome-record bought-record"><span>Purchase record</span><strong>Waited ${wishlistDays} days, then bought it.</strong><small>${item.date || 'Recently purchased'}</small></div><section class="purchase-review"><div class="review-heading"><div><span>Shopping satisfaction</span><h3>Your experience</h3></div>${starsTemplate(item.satisfaction || 0, true, item.id)}</div>${item.reflection ? `<div class="comment-display" id="commentDisplay"><p>${escapeHtml(item.reflection)}</p><button class="button ghost" id="editComment">Edit comment</button></div>` : ''}<form class="experience-form ${item.reflection ? '' : 'open'}" id="experienceForm"><label>Comment<textarea id="experienceComment" rows="3" placeholder="How did this purchase feel?">${escapeHtml(item.reflection || '')}</textarea></label><button class="button secondary" type="submit">${item.reflection ? 'Update experience' : 'Save experience'}</button></form></section><div class="detail-edit-row"><button class="detail-edit-button" id="editRecordFromDetail">✎ Edit record</button></div>`
       : item.status === 'letGo'
         ? `<div class="outcome-record letgo-record"><span>Let-go record</span><strong>You waited ${wishlistDays} days, then let it go.</strong><small>${formatMoney(item.saved || item.price)} stayed with you</small></div><div class="modal-actions"><button class="button secondary" id="restoreWish">Restore to wishlist</button><button class="detail-edit-button" id="editRecordFromDetail">✎ Edit</button></div>`
-        : `${item.note ? `<div class="detail-note"><span>Note</span><p>${item.note}</p></div>` : ''}<p class="detail-meta">${wishlistDays} days in your wishlist · liked ${item.wantCount || 0} times</p><div class="modal-actions"><button class="button" id="wantAgain">Like again</button><button class="button secondary" id="markBought">Bought</button><button class="button ghost" id="letGo">Let go</button><button class="detail-edit-button" id="editRecordFromDetail" aria-label="Edit record">✎</button></div>`;
-    $('#detailContent').innerHTML = `<button class="icon-button close detail-close" id="closeDetail" aria-label="Close">×</button><div class="detail-image-stage"><img src="${item.image}" alt="${item.name}"></div><div class="detail-secondary"><div class="detail-heading"><div>${collection ? `<span class="collection-label">${collection.name}</span>` : ''}<h2>${item.name}</h2></div><button class="detail-favorite ${item.favorite ? 'on' : ''}" id="toggleFavorite" aria-label="Toggle favorite">${item.favorite ? '♥' : '♡'}</button></div><div class="detail-commerce-row"><div class="price-row"><span class="price">${formatMoney(item.price)}</span>${item.originalPrice ? `<span class="original-price">${formatMoney(item.originalPrice)}</span>` : ''}</div>${productLink}</div>${statusContent}</div>`;
+        : `${item.note ? `<div class="detail-note"><span>Note</span><p>${item.note}</p></div>` : ''}<div class="modal-actions"><button class="button" id="wantAgain">Like again</button><button class="button secondary" id="markBought">Bought</button><button class="button ghost" id="letGo">Let go</button><button class="detail-edit-button" id="editRecordFromDetail" aria-label="Edit record">✎</button></div>`;
+    $('#detailContent').innerHTML = `<button class="icon-button close detail-close" id="closeDetail" aria-label="Close">×</button><div class="detail-image-stage"><img src="${item.image}" alt="${item.name}">${item.status === 'waiting' ? `<span class="wish-image-metrics detail-image-metrics">Day ${wishlistDays}<b>♥ ${item.wantCount || 0}</b></span>` : ''}</div><div class="detail-secondary"><div class="detail-heading"><div>${collection ? `<span class="collection-label">${collection.name}</span>` : ''}<h2>${item.name}</h2></div><button class="detail-favorite ${item.favorite ? 'on' : ''}" id="toggleFavorite" aria-label="Toggle favorite">${item.favorite ? '♥' : '♡'}</button></div><div class="detail-commerce-row"><div class="price-row"><span class="price">${formatMoney(item.price)}</span>${item.originalPrice ? `<span class="original-price">${formatMoney(item.originalPrice)}</span>` : ''}</div>${productLink}</div>${statusContent}</div>`;
     modal.classList.add('open');
     $('#closeDetail').onclick = () => modal.classList.remove('open');
     $('#toggleFavorite').onclick = () => { item.favorite = !item.favorite; item.favoriteCount = item.favorite ? 1 : 0; persistWishlistState(); render(); renderCollections(); modal.classList.remove('open'); openProduct(id); };
@@ -673,21 +689,50 @@ function initWishlist() {
     $('#wishlistSelectedCount').textContent = `${selectedWishlistIds.size} selected`;
     $('#deleteSelectedWishes').disabled = selectedWishlistIds.size === 0;
     $('#toggleWishlistSelection').textContent = wishlistSelectMode ? 'Done' : 'Select';
+    $('#deleteSelectedWishes').textContent = 'Delete';
+    $('#deleteSelectedWishes').classList.remove('confirming');
   }
-  $('#toggleWishlistSelection').addEventListener('click', () => {
+
+  const bindSelectionAction = (element, action) => {
+    element.addEventListener('pointerup', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      action(event);
+    });
+    element.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      action(event);
+    });
+  };
+  const leaveWishlistSelection = () => {
+    wishlistSelectMode = false;
+    selectedWishlistIds.clear();
+    updateWishlistSelectionBar();
+    render();
+  };
+
+  bindSelectionAction($('#toggleWishlistSelection'), () => {
     wishlistSelectMode = !wishlistSelectMode;
     selectedWishlistIds.clear();
     updateWishlistSelectionBar();
     render();
   });
-  $('#cancelWishlistSelection').addEventListener('click', () => {
-    wishlistSelectMode = false;
-    selectedWishlistIds.clear();
-    updateWishlistSelectionBar();
-    render();
-  });
-  $('#deleteSelectedWishes').addEventListener('click', () => {
-    if (!selectedWishlistIds.size || !confirm(`Delete ${selectedWishlistIds.size} selected records? This cannot be undone.`)) return;
+  bindSelectionAction($('#cancelWishlistSelection'), leaveWishlistSelection);
+  bindSelectionAction($('#deleteSelectedWishes'), () => {
+    if (!selectedWishlistIds.size) return;
+    const button = $('#deleteSelectedWishes');
+    if (!button.classList.contains('confirming')) {
+      button.classList.add('confirming');
+      button.textContent = `Confirm ${selectedWishlistIds.size}`;
+      clearTimeout(window.__deleteConfirmTimer);
+      window.__deleteConfirmTimer = setTimeout(() => {
+        button.classList.remove('confirming');
+        button.textContent = 'Delete';
+      }, 3500);
+      return;
+    }
+    clearTimeout(window.__deleteConfirmTimer);
     items = items.filter(item => !selectedWishlistIds.has(item.id));
     historyItems.splice(0, historyItems.length, ...historyItems.filter(item => !selectedWishlistIds.has(item.id)));
     selectedWishlistIds.clear();
@@ -741,11 +786,12 @@ function initWishlist() {
     const total = ultimateBuckets.reduce((sum, bucket) => sum + bucket.points, 0);
     $('#ultimateTotalSaved').textContent = formatMoney(total);
     $('#ultimateBucketCount').textContent = `${ultimateBuckets.length} goals`;
-    $('#ultimateBucketGrid').innerHTML = ultimateBuckets.map(bucket => {
+    $('#ultimateBucketGrid').innerHTML = ultimateBuckets.length ? ultimateBuckets.map(bucket => {
       const percent = Math.min(100, Math.round(bucket.points / bucket.target * 100));
       const progress = `<div class="progress-track"><div class="progress-fill" style="width:${percent}%"></div></div><div class="goal-values"><strong>${formatMoney(bucket.points)} saved</strong><span>${formatMoney(bucket.target)} goal</span></div>`;
       return `<article class="ultimate-bucket-card" data-bucket-id="${bucket.id}"><div class="bucket-card-heading"><div><span class="bucket-type">Goal</span><h2>${escapeHtml(bucket.name)}</h2></div><div class="bucket-head-actions"><strong>${percent}%</strong><button class="bucket-delete" data-bucket-id="${bucket.id}" aria-label="Delete ${escapeHtml(bucket.name)}">×</button></div></div>${bucket.description ? `<p>${escapeHtml(bucket.description)}</p>` : ''}${progress}<div class="bucket-actions"><button class="button secondary bucket-add-savings" data-bucket-id="${bucket.id}">＋ Add</button><button class="button ghost bucket-subtract-savings" data-bucket-id="${bucket.id}">− Subtract</button></div></article>`;
-    }).join('');
+    }).join('') : '<div class="empty-state actionable-empty"><span>◎</span><h3>No goals yet</h3><p>Create a goal for the money you choose to save.</p><button class="button" id="emptyAddGoal" type="button">Add a goal</button></div>';
+    $('#emptyAddGoal')?.addEventListener('click', () => $('#ultimateBuilderModal').classList.add('open'));
     $$('.bucket-add-savings', $('#ultimateBucketGrid')).forEach(button => button.addEventListener('click', () => {
       openSavingsTransaction({ mode: 'add', bucketId: button.dataset.bucketId });
     }));
@@ -767,6 +813,11 @@ function initWishlist() {
     pendingSavingsItem = null;
   };
   function openSavingsTransaction({ mode, bucketId = null, amount = '', item = null, optional = false }) {
+    if (!ultimateBuckets.length) {
+      if (optional) toast('Decision saved. Add an Ultimate goal when you are ready.');
+      else $('#ultimateBuilderModal').classList.add('open');
+      return;
+    }
     savingsTransactionMode = mode;
     pendingSavingsItem = item;
     activeSavingsBucketId = bucketId || ultimateBuckets[0]?.id;
@@ -819,11 +870,12 @@ function initWishlist() {
   renderUltimateBuckets();
 
   function renderCollections() {
-    $('#collectionList').innerHTML = collections.map(collection => {
+    $('#collectionList').innerHTML = collections.length ? collections.map(collection => {
       const collectionItems = allItems().filter(item => item.collectionId === collection.id);
       const images = collectionItems.slice(0, 4).map(item => `<img src="${item.image}" alt="">`).join('');
       return `<button class="collection-preview preview-pop" data-collection="${collection.id}"><span class="collection-collage">${images || '<span class="collection-empty">+</span>'}</span><span class="collection-preview-meta"><strong>${collection.name}</strong><small>${collectionItems.length} items</small></span></button>`;
-    }).join('');
+    }).join('') : '<div class="empty-state actionable-empty collection-empty-state"><span>▦</span><h3>No collections yet</h3><p>Group wishes when you are ready.</p><button class="button" id="emptyAddCollection" type="button">Add a collection</button></div>';
+    $('#emptyAddCollection')?.addEventListener('click', () => openCollectionBuilder('create'));
     $$('.collection-preview').forEach(button => button.addEventListener('click', () => openCollection(button.dataset.collection)));
   }
 
@@ -951,14 +1003,19 @@ function initHistory() {
     persistData();
   };
   const historyOutcomeUi = enhanceStandaloneSelect($('#historyOutcome'));
+  $('#historyBack')?.addEventListener('click', () => {
+    if (history.length > 1) history.back();
+    else location.href = 'wishlist.html';
+  });
   const render = () => {
     const items = historyItems[active];
-    list.innerHTML = items.map(item => {
+    list.innerHTML = items.length ? items.map(item => {
       const wishlistDays = item.wishlistDays ?? (item.addedAt ? daysSince(item.addedAt) : 0);
       const wantCount = item.wantCount ?? 0;
       const outcome = active === 'bought' ? 'Purchased' : 'Let go';
       return `<article class="history-row" data-id="${item.id}"><img src="${item.image}" alt="${item.name}"><div class="history-row-main"><div class="history-row-heading"><div><span class="outcome-pill ${active}">${outcome}</span><h3>${item.name}</h3></div><span class="price">${formatMoney(item.price || item.saved)}</span></div><div class="history-journey"><span><strong>${wishlistDays}</strong> days in wishlist</span><span><strong>${wantCount}</strong> likes</span><span><strong>${outcome}</strong> in the end</span></div><div class="history-row-footer">${active === 'bought' ? starsTemplate(item.satisfaction) : '<span class="saved-label">Stayed in your pocket</span>'}<span>${item.date || 'Recently'} · View details →</span></div></div></article>`;
-    }).join('');
+    }).join('') : `<div class="empty-state actionable-empty"><span>${active === 'bought' ? '○' : '↗'}</span><h3>No ${active === 'bought' ? 'purchases' : 'let-go items'} yet</h3><p>Your decisions will appear here.</p><button class="button" id="emptyAddHistory" type="button">Add history</button></div>`;
+    $('#emptyAddHistory')?.addEventListener('click', () => $('#historyAddModal').classList.add('open'));
     $$('.history-row', list).forEach(card => card.addEventListener('click', () => openHistoryItem(Number(card.dataset.id))));
   };
   render();

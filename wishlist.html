@@ -36,7 +36,7 @@
       </section>
 
       <section class="v2-panel active" data-panel-view="wishlist" aria-label="Wishlist">
-        <div class="wishlist-compact-head"><h1>Wishlist</h1><div><a class="history-shortcut" href="history.html">History</a><button class="context-add-button primary" id="addWishFromPage" aria-label="Add wishlist item">+</button></div></div>
+        <div class="wishlist-compact-head"><h1>Wishlist</h1><div class="wishlist-heading-actions"><a class="history-shortcut" href="history.html">History</a><span class="empty-wish-hint hidden" id="emptyWishHint">Add your first wish</span><button class="context-add-button primary" id="addWishFromPage" aria-label="Add wishlist item">+</button></div></div>
         <label class="v2-search"><span>⌕</span><input id="wishlistSearch" type="search" placeholder="Search your wishes" aria-label="Search wishlist"></label>
         <div class="v2-filterbar filter-summary-bar">
           <select id="wishlistFilter" aria-label="Quick status filter">
@@ -91,7 +91,7 @@
     <div class="filter-drawer-heading"><h2>Filters</h2><button class="icon-button" id="closeFilters" aria-label="Close filters">×</button></div>
     <div class="filter-section"><span>View</span><div class="view-switch" aria-label="View style"><button class="view-btn active" data-view="grid" aria-label="Cards view">▦ Cards</button><button class="view-btn" data-view="list" aria-label="List view">☷ List</button></div></div>
     <div class="filter-section"><label>Collection</label><select id="collectionFilter" aria-label="Filter by collection"><option value="all">All collections</option></select></div>
-    <div class="filter-section"><label>Sort by</label><select id="sortSelect" aria-label="Sort wishlist"><option value="newest">Newest</option><option value="wanted">Most liked</option><option value="priceLow">Price low</option><option value="priceHigh">Price high</option></select></div>
+    <div class="filter-section"><label>Sort by</label><select id="sortSelect" aria-label="Sort wishlist"><option value="newest">Newest</option><option value="waiting">Longest waiting</option><option value="wanted">Most hearts</option><option value="priceLow">Price low</option><option value="priceHigh">Price high</option></select></div>
     <a class="button secondary filter-history-link" href="history.html"><span>◴</span>Show history</a>
     <a class="button ghost filter-history-link" href="review.html"><span>◎</span>Review wishlist</a>
     <button class="button filter-apply" id="applyFilters">Show results</button>
