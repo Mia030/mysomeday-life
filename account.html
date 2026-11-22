@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Account · Waitlist</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="theme-color" content="#173d34">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Waitlist">
+</head>
+<body data-page="account">
+  <div id="header-root"></div>
+  <main class="page">
+    <div class="page-topbar"><a class="page-back" href="wishlist.html" aria-label="Back to wishlist">←</a></div>
+    <section class="hero compact-page-hero"><div class="hero-copy"><p class="eyebrow">Account</p><h1>Your settings.</h1><p>Saved on this device.</p></div></section>
+    <section class="stats-strip">
+      <div class="stat"><strong id="accountReviewed">0</strong><span>items reviewed</span></div>
+      <div class="stat"><strong id="accountSaved">$0</strong><span>saved in goals</span></div>
+      <div class="stat"><strong id="accountSatisfaction">—</strong><span>purchase satisfaction</span></div>
+    </section>
+    <section class="settings-list">
+      <div class="setting-row"><div><strong>30-day default wait</strong><p>Use a 30-day reflection period for new items.</p></div><button class="toggle" id="settingDefaultWait" aria-label="Toggle 30-day wait" aria-pressed="false"></button></div>
+      <div class="setting-row"><div><strong>Sync memory choices</strong><p>Update wishlist and history after Memory review.</p></div><button class="toggle" id="settingSyncMemory" aria-label="Toggle sync" aria-pressed="false"></button></div>
+      <div class="setting-row"><div><strong>Gentle reminders</strong><p>Keep this preference ready for future reminders.</p></div><button class="toggle" id="settingReminders" aria-label="Toggle reminders" aria-pressed="false"></button></div>
+      <div class="setting-row"><div><strong>Display currency</strong><p>Changes the symbol; existing values are not converted.</p></div><select id="settingCurrency"><option value="USD">USD ($)</option><option value="CNY">CNY (¥)</option><option value="EUR">EUR (€)</option></select></div>
+    </section>
+    <div class="modal-actions"><button class="button" id="saveAccount">Save preferences</button></div>
+    <section class="local-data-card">
+      <div><p class="eyebrow">Local data</p><h2>Backup this device</h2><p>Your records currently live in this browser. Export a backup before clearing browser data or changing devices.</p></div>
+      <div class="local-data-actions"><button class="button secondary" id="exportLocalData">Export backup</button><button class="button ghost" id="importLocalData">Import backup</button><button class="button ghost danger-button" id="resetLocalData">Reset data</button></div>
+      <input class="hidden" id="importLocalDataFile" type="file" accept="application/json,.json">
+    </section>
+    <section class="local-data-card install-card">
+      <div><p class="eyebrow">Install</p><h2>Add Waitlist to your phone</h2><p>On iPhone, open this site in Safari, tap Share, choose Add to Home Screen, and turn on Open as Web App.</p></div>
+      <div class="local-data-actions"><button class="button hidden" id="installPwa" type="button">Install app</button></div>
+    </section>
+  </main>
+  <div id="footer-root"></div>
+  <script src="assets/mock-data.js"></script>
+  <script src="assets/data-store.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

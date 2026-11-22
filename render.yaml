@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: waitlist
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: npm start
+    healthCheckPath: /wishlist.html
+    autoDeploy: true

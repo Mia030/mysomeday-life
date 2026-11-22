@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Memory · Waitlist</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="theme-color" content="#173d34">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Waitlist">
+</head>
+<body data-page="review">
+  <div id="header-root"></div>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-copy"><p class="eyebrow">A gentle check-in</p><h1>Do you still feel the pull?</h1><p>Move through your wishlist one card at a time. No pressure, just notice.</p></div>
+    </section>
+    <section class="memory-shell" id="memoryShell"></section>
+  </main>
+  <div class="modal" id="memorySavingsModal">
+    <div class="modal-card savings-modal-card">
+      <button class="icon-button close" id="closeMemorySavings" aria-label="Close">×</button>
+      <h2>Add this saving?</h2>
+      <form class="form-grid" id="memorySavingsForm">
+        <label class="full">Bucket<select id="memoryBucketSelect" name="bucketId" required></select></label>
+        <label class="full">Amount<input id="memorySavingsAmount" name="amount" type="number" min="0.01" step="0.01" required></label>
+        <div class="modal-actions full"><button class="button ghost" id="skipMemorySavings" type="button">Skip</button><button class="button" type="submit">Add savings</button></div>
+      </form>
+    </div>
+  </div>
+  <div id="footer-root"></div>
+  <script src="assets/mock-data.js"></script>
+  <script src="assets/data-store.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>History · Waitlist</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="theme-color" content="#173d34">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Waitlist">
+</head>
+<body data-page="history">
+  <div id="header-root"></div>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-copy"><p class="eyebrow">History</p><h1>Your decisions.</h1></div>
+    </section>
+    <div class="toolbar"><div class="segmented"><button class="history-tab active" data-tab="bought">Bought</button><button class="history-tab" data-tab="letGo">Let go</button></div></div>
+    <section id="historyList" class="history-list"></section>
+  </main>
+  <button class="floating-add" id="openHistoryAdd" aria-label="Add history item">+</button>
+  <div class="modal" id="historyAddModal">
+    <div class="modal-card">
+      <button class="icon-button close" id="closeHistoryAdd" aria-label="Close">×</button>
+      <h2>Add to history</h2>
+      <form id="historyAddForm" class="form-grid">
+        <label class="full">Product name<input name="name" required></label>
+        <label>Outcome<select name="status" id="historyOutcome"><option value="bought">Bought</option><option value="letGo">Let go</option></select></label>
+        <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
+        <label class="full">Product link <span class="optional">Optional</span><input name="productUrl" type="url" placeholder="https://"></label>
+        <label class="full">Image URL <span class="optional">Optional</span><input name="image" type="url" placeholder="https://"></label>
+        <label>Days on wishlist <span class="optional">Optional</span><input name="wishlistDays" type="number" min="0" placeholder="e.g. 14"></label>
+        <label>Times liked <span class="optional">Optional</span><input name="wantCount" type="number" min="0" placeholder="e.g. 3"></label>
+        <fieldset class="rating-field full">
+          <legend>Rating <span class="optional">Optional</span></legend>
+          <div class="rating-input" aria-label="Rating"><input type="radio" name="satisfaction" id="rate5" value="5"><label for="rate5">★</label><input type="radio" name="satisfaction" id="rate4" value="4"><label for="rate4">★</label><input type="radio" name="satisfaction" id="rate3" value="3"><label for="rate3">★</label><input type="radio" name="satisfaction" id="rate2" value="2"><label for="rate2">★</label><input type="radio" name="satisfaction" id="rate1" value="1"><label for="rate1">★</label></div>
+        </fieldset>
+        <label class="full compact-note">Shopping review <span class="optional">Optional</span><textarea name="reflection" rows="2" placeholder="How did this purchase feel?"></textarea></label>
+        <button class="button full" type="submit">Add to history</button>
+      </form>
+    </div>
+  </div>
+  <div class="modal" id="historyDetailModal"><div class="modal-card" id="historyDetailContent"></div></div>
+  <div id="footer-root"></div>
+  <script src="assets/mock-data.js"></script>
+  <script src="assets/data-store.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

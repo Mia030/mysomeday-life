@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Waitlist · Your thoughtful wishlist</title>
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="theme-color" content="#173d34">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Waitlist">
+</head>
+<body data-page="wishlist" class="v2-app">
+  <main class="v2-shell">
+    <header class="v2-header">
+      <a class="v2-brand" href="wishlist.html" aria-label="Waitlist home"><span>W</span></a>
+      <nav class="v2-tabs" aria-label="Main views">
+        <button class="v2-tab" data-panel="home">Home</button>
+        <button class="v2-tab active" data-panel="wishlist">Wishlist</button>
+        <button class="v2-tab" data-panel="ultimate">Ultimate</button>
+      </nav>
+      <button class="v2-theme" id="themeToggle" aria-label="Toggle theme">◐</button>
+    </header>
+
+    <div class="v2-panels" id="v2Panels">
+      <section class="v2-panel" data-panel-view="home" aria-label="Home">
+        <div class="v2-page-heading compact-heading"><p class="eyebrow">Summary</p></div>
+        <article class="journey-card preview-pop">
+          <div><span class="journey-kicker">Your journey</span><strong id="journeyItems">4</strong><span>things on your mind</span></div>
+          <div class="journey-metrics"><p><strong id="journeyLists">3</strong><span>collections</span></p><p><strong id="journeyLikes">19</strong><span>likes recorded</span></p></div>
+        </article>
+        <div class="section-heading"><h2>Collections</h2><button class="context-add-button" id="addCollectionFromHome" aria-label="Add collection">+</button></div>
+        <section class="collection-list" id="collectionList"></section>
+      </section>
+
+      <section class="v2-panel active" data-panel-view="wishlist" aria-label="Wishlist">
+        <div class="v2-page-heading minimal-page-heading heading-with-action"><h1>Wishlist</h1><button class="context-add-button primary" id="addWishFromPage" aria-label="Add wishlist item">+</button></div>
+        <label class="v2-search"><span>⌕</span><input id="wishlistSearch" type="search" placeholder="Search your wishes" aria-label="Search wishlist"></label>
+        <div class="v2-filterbar filter-summary-bar">
+          <select id="wishlistFilter" aria-label="Quick status filter">
+            <option value="all">All wishes</option>
+            <option value="favorites">Favorites</option>
+            <option value="bought">Bought</option>
+            <option value="letGo">Let go</option>
+          </select>
+          <button class="filter-drawer-button" id="openFilters" aria-label="Open filters">☷</button>
+        </div>
+        <section id="wishlistGrid" class="product-grid v2-wish-grid"></section>
+      </section>
+
+      <section class="v2-panel" data-panel-view="ultimate" aria-label="Ultimate wish">
+        <div class="v2-page-heading minimal-page-heading heading-with-action"><h1>Ultimate Wish</h1><button class="context-add-button primary" id="addUltimateFromPage" aria-label="Add ultimate goal">+</button></div>
+        <article class="saved-card preview-pop"><span>Total saved</span><strong id="ultimateTotalSaved">$0</strong></article>
+        <div class="ultimate-buckets-heading"><h2>Goals</h2><span id="ultimateBucketCount"></span></div>
+        <section class="ultimate-bucket-grid" id="ultimateBucketGrid"></section>
+      </section>
+    </div>
+    <section class="collection-page" id="collectionPage" aria-label="Collection">
+      <div class="collection-page-toolbar">
+        <button class="collection-back" id="collectionBack" aria-label="Back"><span>←</span></button>
+        <div class="collection-toolbar-actions"><button class="collection-context-add" id="addToCollection" aria-label="Add item">+</button><button class="collection-edit" id="editCollection"><span>✓</span> Select</button></div>
+      </div>
+      <header class="collection-page-header">
+        <p class="eyebrow">Collection</p>
+        <h1 id="collectionPageName"></h1>
+        <p id="collectionPageDescription"></p>
+        <span id="collectionPageCount"></span>
+      </header>
+      <div class="collection-selection-bar hidden" id="collectionSelectionBar"><span id="collectionSelectedCount">0 selected</span><div><button class="button ghost" id="cancelCollectionSelection" type="button">Cancel</button><button class="button collection-remove-selected" id="removeSelectedFromCollection" type="button" disabled>Remove</button></div></div>
+      <section class="product-grid v2-wish-grid collection-page-grid" id="collectionPageGrid"></section>
+    </section>
+  </main>
+
+  <nav class="bubble-nav" aria-label="Quick navigation">
+    <button class="bubble-nav-item active" data-go-panel="wishlist"><span>♡</span><small>Wishlist</small></button>
+    <button class="bubble-nav-item add-bubble" id="quickAdd" aria-label="Add something"><span>+</span></button>
+    <a class="bubble-nav-item" href="account.html"><span>○</span><small>Account</small></a>
+  </nav>
+  <button class="quick-add-backdrop" id="quickAddBackdrop" aria-label="Close add menu"></button>
+  <div class="quick-add-menu" id="quickAddMenu" aria-label="Add options">
+    <button data-add="wishlist"><span>♡</span>Add wishlist item</button>
+    <button data-add="collection"><span>▦</span>Add collection</button>
+    <button data-add="ultimate"><span>◎</span>Add ultimate goal</button>
+    <a href="history.html#add"><span>◴</span>Add history</a>
+  </div>
+  <button class="filter-drawer-backdrop" id="filterDrawerBackdrop" aria-label="Close filters"></button>
+  <aside class="filter-drawer" id="filterDrawer" aria-label="Wishlist filters">
+    <div class="filter-drawer-heading"><h2>Filters</h2><button class="icon-button" id="closeFilters" aria-label="Close filters">×</button></div>
+    <div class="filter-section"><span>View</span><div class="view-switch" aria-label="View style"><button class="view-btn active" data-view="grid" aria-label="Cards view">▦ Cards</button><button class="view-btn" data-view="list" aria-label="List view">☷ List</button></div></div>
+    <div class="filter-section"><label>Collection</label><select id="collectionFilter" aria-label="Filter by collection"><option value="all">All collections</option></select></div>
+    <div class="filter-section"><label>Sort by</label><select id="sortSelect" aria-label="Sort wishlist"><option value="newest">Newest</option><option value="wanted">Most liked</option><option value="priceLow">Price low</option><option value="priceHigh">Price high</option></select></div>
+    <a class="button secondary filter-history-link" href="history.html"><span>◴</span>Show history</a>
+    <a class="button ghost filter-history-link" href="review.html"><span>◎</span>Review wishlist</a>
+    <button class="button filter-apply" id="applyFilters">Show results</button>
+  </aside>
+
+  <div class="modal" id="addModal">
+    <div class="modal-card add-wish-card">
+      <button class="icon-button close" id="closeAdd" aria-label="Close">×</button>
+      <h2>Add to wishlist</h2>
+      <form id="addForm" class="form-grid">
+        <label class="full">Product link <span class="optional">Optional</span><input id="addProductUrl" name="productUrl" type="url" placeholder="https://example.com/product"></label>
+        <div class="product-fetch-actions full"><button class="button secondary hidden" id="getProductDetails" type="button">Get product details</button><button class="button ghost" id="addProductManually" type="button">Add manually</button><span id="productFetchStatus" aria-live="polite"></span></div>
+        <div class="product-fetch-preview full hidden" id="productFetchPreview"><img id="productPreviewImage" alt="Product preview"><div><span>Product found</span><strong id="productPreviewName"></strong></div></div>
+        <div class="add-item-fields full hidden" id="addItemFields">
+          <div class="form-grid">
+            <label class="full">Product name<input id="addProductName" name="name" required></label>
+            <label>Sale price<input id="addProductPrice" name="price" type="number" min="0" step="0.01" required></label>
+            <label>Original price<input name="originalPrice" type="number" min="0" step="0.01"></label>
+            <label class="full">Collection <span class="optional">Optional</span><select name="collectionId" id="addCollectionSelect"></select></label>
+            <label class="full new-collection-field hidden" id="newCollectionLabel">New collection name<input name="newCollectionName" id="newCollectionName" placeholder="e.g. Summer trip"></label>
+            <label class="full">Image URL <span class="optional">Optional</span><input id="addProductImage" name="image" type="url" placeholder="https://"></label>
+            <label class="favorite-check full"><input name="favorite" type="checkbox"> Add to favorites</label>
+            <label class="full compact-note">Note <span class="optional">Optional</span><textarea name="note" rows="2" placeholder="Anything you want to remember"></textarea></label>
+            <button class="button full" type="submit">Add to wishlist</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="modal" id="collectionBuilderModal"><div class="modal-card collection-builder-card"><button class="icon-button close" id="closeCollectionBuilder" aria-label="Close">×</button><h2 id="collectionBuilderTitle">New collection</h2><form id="collectionBuilderForm"><div class="collection-create-fields" id="collectionCreateFields"><label>Collection name<input name="collectionName" id="collectionName" placeholder="e.g. Summer escape"></label><label>Short description<textarea name="collectionDescription" rows="2" placeholder="What belongs in this collection?"></textarea></label></div><label class="collection-target-field hidden" id="collectionTargetField">Add to collection<select name="targetCollection" id="targetCollectionSelect"></select></label><div class="selection-heading"><div><strong id="collectionPickerLabel">Choose items</strong><span id="selectionCount">0 selected</span></div><button type="button" id="selectAllWishes">Select all</button></div><div class="collection-picker-grid" id="collectionPickerGrid"></div><button class="button collection-builder-save" id="saveCollectionBuilder" type="submit">Create collection</button></form></div></div>
+  <div class="modal" id="collectionAddModal"><div class="modal-card collection-add-card"><button class="icon-button close" id="closeCollectionAdd" aria-label="Close">×</button><h2>Add items</h2><div class="collection-add-choices"><button id="addNewWishToCollection"><span>＋</span><strong>New item</strong></button><button id="chooseExistingForCollection"><span>✓</span><strong>Existing items</strong></button></div></div></div>
+  <div class="modal" id="ultimateBuilderModal"><div class="modal-card"><button class="icon-button close" id="closeUltimateBuilder" aria-label="Close">×</button><h2>Add ultimate goal</h2><form class="form-grid" id="ultimateBuilderForm"><label class="full">Goal name<input name="name" required placeholder="e.g. Yellowstone Road Trip"></label><label class="full">Short description<textarea name="description" rows="3" placeholder="What makes this goal worth waiting for?"></textarea></label><label class="full">Target amount<input name="target" type="number" min="1" step="0.01" required placeholder="1200"></label><button class="button full" type="submit">Add ultimate goal</button></form></div></div>
+  <div class="modal" id="savingsModal"><div class="modal-card savings-modal-card"><button class="icon-button close" id="closeSavingsModal" aria-label="Close">×</button><h2 id="savingsModalTitle">Add savings</h2><form class="form-grid" id="savingsForm"><label class="full">Bucket<select id="savingsBucketSelect" name="bucketId" required></select></label><label class="full">Amount<input id="savingsAmount" name="amount" type="number" min="0.01" step="0.01" required placeholder="25"></label><div class="modal-actions full"><button class="button ghost hidden" id="skipSavingsTransaction" type="button">Skip</button><button class="button" id="saveSavingsTransaction" type="submit">Add savings</button></div></form></div></div>
+  <div class="modal" id="detailModal"><div class="modal-card" id="detailContent"></div></div>
+  <div class="modal" id="editModal"><div class="modal-card" id="editContent"></div></div>
+  <script src="assets/mock-data.js"></script>
+  <script src="assets/data-store.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
