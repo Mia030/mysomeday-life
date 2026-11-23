@@ -1,6 +1,85 @@
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const persistData = () => window.WAITLIST_STORE?.save(window.WAITLIST_MOCK);
+const LOCAL_IMAGE_DB = 'waitlist-product-images';
+const LOCAL_IMAGE_STORE = 'images';
+
+const openImageDb = () => new Promise((resolve, reject) => {
+  const request = indexedDB.open(LOCAL_IMAGE_DB, 1);
+  request.onupgradeneeded = () => request.result.createObjectStore(LOCAL_IMAGE_STORE);
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error);
+});
+
+async function storeLocalImage(blob) {
+  const db = await openImageDb();
+  const id = `image-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(LOCAL_IMAGE_STORE, 'readwrite');
+    transaction.objectStore(LOCAL_IMAGE_STORE).put(blob, id);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+  });
+  db.close();
+  return id;
+}
+
+async function readLocalImage(id) {
+  const db = await openImageDb();
+  const blob = await new Promise((resolve, reject) => {
+    const request = db.transaction(LOCAL_IMAGE_STORE).objectStore(LOCAL_IMAGE_STORE).get(id);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return blob;
+}
+
+const blobToDataUrl = blob => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
+async function compressProductImage(file) {
+  const bitmap = await createImageBitmap(file);
+  const maxSide = 1400;
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Image compression failed.')), 'image/webp', .82));
+}
+
+function imageAttributes(item) {
+  const fallback = item.image || 'assets/product-placeholder.svg';
+  return `src="${escapeHtml(fallback)}"${item.imageId ? ` data-image-id="${escapeHtml(item.imageId)}"` : ''}`;
+}
+
+async function hydrateLocalImages(root = document) {
+  const images = [];
+  if (root instanceof HTMLImageElement && root.dataset.imageId) images.push(root);
+  if (root.querySelectorAll) images.push(...root.querySelectorAll('img[data-image-id]'));
+  await Promise.all(images.filter(image => !image.dataset.localHydrated).map(async image => {
+    image.dataset.localHydrated = 'true';
+    try {
+      const savedImage = await readLocalImage(image.dataset.imageId);
+      if (savedImage) image.src = typeof savedImage === 'string' ? savedImage : await blobToDataUrl(savedImage);
+    } catch (error) {
+      image.dataset.localHydrated = '';
+    }
+  }));
+}
+
+function watchLocalImages() {
+  hydrateLocalImages();
+  new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
+    if (node.nodeType === Node.ELEMENT_NODE) hydrateLocalImages(node);
+  }))).observe(document.body, { childList: true, subtree: true });
+}
 
 async function loadPartial(target, path) {
   const node = document.querySelector(target);
@@ -130,7 +209,7 @@ function enhanceStandaloneSelect(select) {
 function cardTemplate(item) {
   const waitingDays = item.wishlistDays ?? daysSince(item.addedAt || item.date);
   return `<article class="product-card visual-card reveal-card" data-id="${item.id}" tabindex="0" role="button" aria-label="Open ${item.name}">
-    <div class="product-image-wrap"><img src="${item.image}" alt=""><span class="wish-image-metrics">Day ${waitingDays}<b>♥ ${item.wantCount || 0}</b></span>${item.favorite ? '<span class="favorite-badge" aria-label="Favorite">♥</span>' : ''}<span class="product-hover-meta"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price ?? item.saved)}</small></span></div>
+    <div class="product-image-wrap"><img ${imageAttributes(item)} alt=""><span class="wish-image-metrics">Day ${waitingDays}<b>♥ ${item.wantCount || 0}</b></span>${item.favorite ? '<span class="favorite-badge" aria-label="Favorite">♥</span>' : ''}<span class="product-hover-meta"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price ?? item.saved)}</small></span></div>
     <div class="card-manage-overlay"><span>Manage wish</span><div><button class="card-manage-select" type="button">Select</button><button class="card-manage-delete" type="button">Delete</button></div></div>
   </article>`;
 }
@@ -142,6 +221,8 @@ function initWishlist() {
   const historyItems = [...WAITLIST_MOCK.bought, ...WAITLIST_MOCK.letGo];
   const collections = WAITLIST_MOCK.collections || [];
   const ultimateBuckets = WAITLIST_MOCK.ultimateBuckets || [];
+  let pendingWishImageId = null;
+  let pendingWishImagePromise = null;
   let activeSavingsBucketId = null;
   let savingsTransactionMode = 'add';
   let pendingSavingsItem = null;
@@ -380,6 +461,8 @@ function initWishlist() {
   const revealAddFields = () => $('#addItemFields').classList.remove('hidden');
   const resetAddExperience = () => {
     $('#addForm').reset();
+    pendingWishImageId = null;
+    pendingWishImagePromise = null;
     $('#addItemFields').classList.add('hidden');
     $('#getProductDetails').classList.add('hidden');
     $('#productFetchPreview').classList.add('hidden');
@@ -399,6 +482,31 @@ function initWishlist() {
   $('#addCollectionFromHome').addEventListener('click', () => openCollectionBuilder('create'));
   $('#closeAdd').addEventListener('click', () => $('#addModal').classList.remove('open'));
   $('#addProductManually').addEventListener('click', revealAddFields);
+  $('#wishlistScreenshot').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    revealAddFields();
+    $('#productFetchStatus').textContent = 'Preparing screenshot…';
+    $('#productFetchStatus').classList.remove('error');
+    const submit = $('#addForm button[type="submit"]');
+    submit.disabled = true;
+    try {
+      const blob = await compressProductImage(file);
+      pendingWishImagePromise = storeLocalImage(blob);
+      pendingWishImageId = await pendingWishImagePromise;
+      $('#productPreviewImage').src = URL.createObjectURL(blob);
+      $('#productPreviewName').textContent = $('#addProductName').value || 'Uploaded screenshot';
+      $('#productFetchPreview').classList.remove('hidden');
+      $('#productFetchStatus').textContent = 'Screenshot added. Enter or check the product details.';
+    } catch (error) {
+      pendingWishImageId = null;
+      pendingWishImagePromise = null;
+      $('#productFetchStatus').textContent = 'This image could not be added. Try another file.';
+      $('#productFetchStatus').classList.add('error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
   $('#addProductUrl').addEventListener('input', event => {
     const hasUrl = Boolean(event.target.value.trim());
     $('#getProductDetails').classList.toggle('hidden', !hasUrl);
@@ -443,6 +551,8 @@ function initWishlist() {
       if (product.name) $('#addProductName').value = product.name;
       if (product.price !== null && product.price !== undefined) $('#addProductPrice').value = product.price;
       if (product.image) {
+        pendingWishImageId = null;
+        pendingWishImagePromise = null;
         $('#addProductImage').value = product.image;
         $('#productPreviewImage').src = product.image;
         $('#productPreviewName').textContent = product.name || 'Product preview';
@@ -450,8 +560,7 @@ function initWishlist() {
       }
       $('#productFetchStatus').textContent = 'Details added. Check and edit anything before saving.';
     } catch (error) {
-      const fallbackText = /manually/i.test(error.message) ? '' : ' You can still add it manually.';
-      $('#productFetchStatus').textContent = `${error.message}${fallbackText}`;
+      $('#productFetchStatus').textContent = `${error.message} Upload a screenshot or complete the details manually.`;
       $('#productFetchStatus').classList.add('error');
     } finally {
       button.disabled = false;
@@ -463,8 +572,12 @@ function initWishlist() {
     $('#newCollectionLabel').classList.toggle('hidden', !creating);
     $('#newCollectionName').required = creating;
   });
-  $('#addForm').addEventListener('submit', e => {
+  $('#addForm').addEventListener('submit', async e => {
     e.preventDefault();
+    if (pendingWishImagePromise) {
+      $('#productFetchStatus').textContent = 'Finishing your screenshot…';
+      try { pendingWishImageId = await pendingWishImagePromise; } catch (error) { pendingWishImageId = null; }
+    }
     const fd = new FormData(e.target);
     const favorite = fd.get('favorite') === 'on';
     let collectionId = fd.get('collectionId') || null;
@@ -476,7 +589,7 @@ function initWishlist() {
       collectionFilterUi.refresh();
       addCollectionUi.refresh();
     }
-    items.unshift({ id: Date.now(), name: fd.get('name'), image: fd.get('image') || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80', productUrl: fd.get('productUrl'), price: Number(fd.get('price')), originalPrice: Number(fd.get('originalPrice')) || null, addedAt: new Date().toISOString(), wantCount: 1, status: 'waiting', collectionId, favorite, favoriteCount: favorite ? 1 : 0, note: fd.get('note') });
+    items.unshift({ id: Date.now(), name: fd.get('name'), image: fd.get('image') || 'assets/product-placeholder.svg', imageId: pendingWishImageId, productUrl: extractProductUrl(fd.get('productUrl')), price: Number(fd.get('price')), originalPrice: Number(fd.get('originalPrice')) || null, addedAt: new Date().toISOString(), wantCount: 1, status: 'waiting', collectionId, favorite, favoriteCount: favorite ? 1 : 0, note: fd.get('note') });
     persistWishlistState();
     resetAddExperience();
     addCollectionUi.refresh();
@@ -502,7 +615,9 @@ function initWishlist() {
       item.originalPrice = Number(data.get('originalPrice')) || null;
       item.collectionId = data.get('collectionId') || null;
       item.productUrl = data.get('productUrl');
-      item.image = data.get('image') || item.image;
+      const editedImage = data.get('image');
+      if (editedImage && editedImage !== item.image) item.imageId = null;
+      item.image = editedImage || item.image;
       item.favorite = data.get('favorite') === 'on';
       item.favoriteCount = item.favorite ? 1 : 0;
       item.note = data.get('note');
@@ -525,7 +640,7 @@ function initWishlist() {
       : item.status === 'letGo'
         ? `<div class="outcome-record letgo-record"><span>Let-go record</span><strong>You waited ${wishlistDays} days, then let it go.</strong><small>${formatMoney(item.saved || item.price)} stayed with you</small></div><div class="modal-actions"><button class="button secondary" id="restoreWish">Restore to wishlist</button><button class="detail-edit-button" id="editRecordFromDetail">✎ Edit</button></div>`
         : `${item.note ? `<div class="detail-note"><span>Note</span><p>${item.note}</p></div>` : ''}<div class="modal-actions"><button class="button" id="wantAgain">Like again</button><button class="button secondary" id="markBought">Bought</button><button class="button ghost" id="letGo">Let go</button><button class="detail-edit-button" id="editRecordFromDetail" aria-label="Edit record">✎</button></div>`;
-    $('#detailContent').innerHTML = `<button class="icon-button close detail-close" id="closeDetail" aria-label="Close">×</button><div class="detail-image-stage"><img src="${item.image}" alt="${item.name}">${item.status === 'waiting' ? `<span class="wish-image-metrics detail-image-metrics">Day ${wishlistDays}<b>♥ ${item.wantCount || 0}</b></span>` : ''}</div><div class="detail-secondary"><div class="detail-heading"><div>${collection ? `<span class="collection-label">${collection.name}</span>` : ''}<h2>${item.name}</h2></div><button class="detail-favorite ${item.favorite ? 'on' : ''}" id="toggleFavorite" aria-label="Toggle favorite">${item.favorite ? '♥' : '♡'}</button></div><div class="detail-commerce-row"><div class="price-row"><span class="price">${formatMoney(item.price)}</span>${item.originalPrice ? `<span class="original-price">${formatMoney(item.originalPrice)}</span>` : ''}</div>${productLink}</div>${statusContent}</div>`;
+    $('#detailContent').innerHTML = `<button class="icon-button close detail-close" id="closeDetail" aria-label="Close">×</button><div class="detail-image-stage"><img ${imageAttributes(item)} alt="${escapeHtml(item.name)}">${item.status === 'waiting' ? `<span class="wish-image-metrics detail-image-metrics">Day ${wishlistDays}<b>♥ ${item.wantCount || 0}</b></span>` : ''}</div><div class="detail-secondary"><div class="detail-heading"><div>${collection ? `<span class="collection-label">${collection.name}</span>` : ''}<h2>${item.name}</h2></div><button class="detail-favorite ${item.favorite ? 'on' : ''}" id="toggleFavorite" aria-label="Toggle favorite">${item.favorite ? '♥' : '♡'}</button></div><div class="detail-commerce-row"><div class="price-row"><span class="price">${formatMoney(item.price)}</span>${item.originalPrice ? `<span class="original-price">${formatMoney(item.originalPrice)}</span>` : ''}</div>${productLink}</div>${statusContent}</div>`;
     modal.classList.add('open');
     $('#closeDetail').onclick = () => modal.classList.remove('open');
     $('#toggleFavorite').onclick = () => { item.favorite = !item.favorite; item.favoriteCount = item.favorite ? 1 : 0; persistWishlistState(); render(); renderCollections(); modal.classList.remove('open'); openProduct(id); };
@@ -641,7 +756,7 @@ function initWishlist() {
     const pickerItems = collectionPickerItems();
     $('#collectionPickerGrid').innerHTML = pickerItems.length ? pickerItems.map(item => `<label class="collection-pick ${selectedWishIds.has(item.id) ? 'selected' : ''}">
       <input type="checkbox" value="${item.id}" ${selectedWishIds.has(item.id) ? 'checked' : ''}>
-      <img src="${item.image}" alt=""><span class="pick-check">✓</span>
+      <img ${imageAttributes(item)} alt=""><span class="pick-check">✓</span>
     </label>`).join('') : '<div class="empty-state"><span>○</span><h3>No items</h3></div>';
     $('#selectionCount').textContent = `${selectedWishIds.size} selected`;
     $$('.collection-pick input', $('#collectionPickerGrid')).forEach(input => input.addEventListener('change', () => {
@@ -872,7 +987,7 @@ function initWishlist() {
   function renderCollections() {
     $('#collectionList').innerHTML = collections.length ? collections.map(collection => {
       const collectionItems = allItems().filter(item => item.collectionId === collection.id);
-      const images = collectionItems.slice(0, 4).map(item => `<img src="${item.image}" alt="">`).join('');
+      const images = collectionItems.slice(0, 4).map(item => `<img ${imageAttributes(item)} alt="">`).join('');
       return `<button class="collection-preview preview-pop" data-collection="${collection.id}"><span class="collection-collage">${images || '<span class="collection-empty">+</span>'}</span><span class="collection-preview-meta"><strong>${collection.name}</strong><small>${collectionItems.length} items</small></span></button>`;
     }).join('') : '<div class="empty-state actionable-empty collection-empty-state"><span>▦</span><h3>No collections yet</h3><p>Group wishes when you are ready.</p><button class="button" id="emptyAddCollection" type="button">Add a collection</button></div>';
     $('#emptyAddCollection')?.addEventListener('click', () => openCollectionBuilder('create'));
@@ -887,7 +1002,7 @@ function initWishlist() {
     $('#collectionPageDescription').textContent = collection.description;
     $('#collectionPageCount').textContent = `${collectionItems.length} ${collectionItems.length === 1 ? 'item' : 'items'}`;
     $('#collectionPageGrid').innerHTML = collectionItems.map(item => `<article class="product-card visual-card reveal-card collection-select-card ${collectionSelectMode ? 'select-mode' : ''} ${selectedCollectionItemIds.has(item.id) ? 'selected' : ''}" data-id="${item.id}" tabindex="0" role="button" aria-label="${collectionSelectMode ? 'Select' : 'Open'} ${escapeHtml(item.name)}">
-      <div class="product-image-wrap"><img src="${item.image}" alt="">${item.favorite ? '<span class="favorite-badge" aria-label="Favorite">♥</span>' : ''}<span class="product-hover-meta"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price ?? item.saved)}</small></span>${collectionSelectMode ? `<span class="collection-select-check" aria-hidden="true">${selectedCollectionItemIds.has(item.id) ? '✓' : ''}</span>` : ''}</div>
+      <div class="product-image-wrap"><img ${imageAttributes(item)} alt="">${item.favorite ? '<span class="favorite-badge" aria-label="Favorite">♥</span>' : ''}<span class="product-hover-meta"><strong>${escapeHtml(item.name)}</strong><small>${formatMoney(item.price ?? item.saved)}</small></span>${collectionSelectMode ? `<span class="collection-select-check" aria-hidden="true">${selectedCollectionItemIds.has(item.id) ? '✓' : ''}</span>` : ''}</div>
     </article>`).join('');
     $('#collectionSelectionBar').classList.toggle('hidden', !collectionSelectMode);
     $('#editCollection').classList.toggle('active', collectionSelectMode);
@@ -997,25 +1112,35 @@ function initHistory() {
   if (!list) return;
   let active = 'bought';
   const historyItems = { bought: WAITLIST_MOCK.bought, letGo: WAITLIST_MOCK.letGo };
+  const collections = WAITLIST_MOCK.collections || [];
+  let pendingHistoryImageId = null;
+  let pendingHistoryImagePromise = null;
   const persistHistoryState = () => {
     WAITLIST_MOCK.bought = historyItems.bought;
     WAITLIST_MOCK.letGo = historyItems.letGo;
     persistData();
   };
+  const collectionOptions = collections.map(collection => `<option value="${collection.id}">${escapeHtml(collection.name)}</option>`).join('');
+  $('#historyCollectionFilter').innerHTML = `<option value="all">All collections</option>${collectionOptions}`;
+  $('#historyCollectionSelect').innerHTML = `<option value="">No collection</option>${collectionOptions}`;
   const historyOutcomeUi = enhanceStandaloneSelect($('#historyOutcome'));
+  enhanceStandaloneSelect($('#historyCollectionFilter'));
+  const historyCollectionSelectUi = enhanceStandaloneSelect($('#historyCollectionSelect'));
   $('#historyBack')?.addEventListener('click', () => {
     if (history.length > 1) history.back();
     else location.href = 'wishlist.html';
   });
   const render = () => {
-    const items = historyItems[active];
+    const collectionId = $('#historyCollectionFilter').value;
+    const items = historyItems[active].filter(item => collectionId === 'all' || item.collectionId === collectionId);
     list.innerHTML = items.length ? items.map(item => {
       const wishlistDays = item.wishlistDays ?? (item.addedAt ? daysSince(item.addedAt) : 0);
       const wantCount = item.wantCount ?? 0;
       const outcome = active === 'bought' ? 'Purchased' : 'Let go';
-      return `<article class="history-row" data-id="${item.id}"><img src="${item.image}" alt="${item.name}"><div class="history-row-main"><div class="history-row-heading"><div><span class="outcome-pill ${active}">${outcome}</span><h3>${item.name}</h3></div><span class="price">${formatMoney(item.price || item.saved)}</span></div><div class="history-journey"><span><strong>${wishlistDays}</strong> days in wishlist</span><span><strong>${wantCount}</strong> likes</span><span><strong>${outcome}</strong> in the end</span></div><div class="history-row-footer">${active === 'bought' ? starsTemplate(item.satisfaction) : '<span class="saved-label">Stayed in your pocket</span>'}<span>${item.date || 'Recently'} · View details →</span></div></div></article>`;
+      const collection = collections.find(entry => entry.id === item.collectionId);
+      return `<article class="history-row" data-id="${item.id}"><img ${imageAttributes(item)} alt="${escapeHtml(item.name)}"><div class="history-row-main"><div class="history-row-heading"><div><span class="outcome-pill ${active}">${outcome}</span>${collection ? `<span class="history-collection-pill">${escapeHtml(collection.name)}</span>` : ''}<h3>${escapeHtml(item.name)}</h3></div><span class="price">${formatMoney(item.price || item.saved)}</span></div><div class="history-journey"><span><strong>${wishlistDays}</strong> days in wishlist</span><span><strong>${wantCount}</strong> likes</span><span><strong>${outcome}</strong> in the end</span></div><div class="history-row-footer">${active === 'bought' ? starsTemplate(item.satisfaction) : '<span class="saved-label">Stayed in your pocket</span>'}<span>${item.date || 'Recently'} · View details →</span></div></div></article>`;
     }).join('') : `<div class="empty-state actionable-empty"><span>${active === 'bought' ? '○' : '↗'}</span><h3>No ${active === 'bought' ? 'purchases' : 'let-go items'} yet</h3><p>Your decisions will appear here.</p><button class="button" id="emptyAddHistory" type="button">Add history</button></div>`;
-    $('#emptyAddHistory')?.addEventListener('click', () => $('#historyAddModal').classList.add('open'));
+    $('#emptyAddHistory')?.addEventListener('click', () => openHistoryAdd());
     $$('.history-row', list).forEach(card => card.addEventListener('click', () => openHistoryItem(Number(card.dataset.id))));
   };
   render();
@@ -1023,19 +1148,120 @@ function initHistory() {
     $$('.history-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active'); active = btn.dataset.tab; render();
   }));
-  $('#openHistoryAdd').addEventListener('click', () => $('#historyAddModal').classList.add('open'));
+  $('#historyCollectionFilter').addEventListener('change', render);
+  const revealHistoryFields = () => $('#historyAddFields').classList.remove('hidden');
+  const resetHistoryAdd = () => {
+    $('#historyAddForm').reset();
+    pendingHistoryImageId = null;
+    pendingHistoryImagePromise = null;
+    $('#historyAddFields').classList.add('hidden');
+    $('#getHistoryProductDetails').classList.add('hidden');
+    $('#historyFetchPreview').classList.add('hidden');
+    $('#historyFetchStatus').textContent = '';
+    $('#historyFetchStatus').classList.remove('error');
+    historyOutcomeUi.refresh();
+    historyCollectionSelectUi.refresh();
+  };
+  const openHistoryAdd = () => { resetHistoryAdd(); $('#historyAddModal').classList.add('open'); };
+  $('#openHistoryAdd').addEventListener('click', openHistoryAdd);
   $('#closeHistoryAdd').addEventListener('click', () => $('#historyAddModal').classList.remove('open'));
-  if (location.hash === '#add') $('#historyAddModal').classList.add('open');
-  $('#historyAddForm').addEventListener('submit', e => {
+  $('#historyAddManually').addEventListener('click', revealHistoryFields);
+  $('#historyScreenshot').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    revealHistoryFields();
+    $('#historyFetchStatus').textContent = 'Preparing screenshot…';
+    $('#historyFetchStatus').classList.remove('error');
+    const submit = $('#historyAddForm button[type="submit"]');
+    submit.disabled = true;
+    try {
+      const blob = await compressProductImage(file);
+      pendingHistoryImagePromise = storeLocalImage(blob);
+      pendingHistoryImageId = await pendingHistoryImagePromise;
+      $('#historyPreviewImage').src = URL.createObjectURL(blob);
+      $('#historyPreviewName').textContent = $('#historyProductName').value || 'Uploaded screenshot';
+      $('#historyFetchPreview').classList.remove('hidden');
+      $('#historyFetchStatus').textContent = 'Screenshot added. Enter or check the product details.';
+    } catch (error) {
+      pendingHistoryImageId = null;
+      pendingHistoryImagePromise = null;
+      $('#historyFetchStatus').textContent = 'This image could not be added. Try another file.';
+      $('#historyFetchStatus').classList.add('error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  $('#historyProductUrl').addEventListener('input', event => {
+    const hasValue = Boolean(event.target.value.trim());
+    $('#getHistoryProductDetails').classList.toggle('hidden', !hasValue);
+    if (hasValue) revealHistoryFields();
+    $('#historyFetchStatus').textContent = '';
+    $('#historyFetchStatus').classList.remove('error');
+  });
+  $('#clearHistoryProductUrl').addEventListener('click', () => {
+    $('#historyProductUrl').value = '';
+    $('#historyProductName').value = '';
+    $('#historyProductPrice').value = '';
+    $('#historyProductImage').value = '';
+    $('#getHistoryProductDetails').classList.add('hidden');
+    $('#historyFetchPreview').classList.add('hidden');
+    $('#historyFetchStatus').textContent = '';
+    $('#historyProductUrl').focus();
+  });
+  $('#historyProductImage').addEventListener('input', event => {
+    if (!event.target.value.trim()) return;
+    $('#historyPreviewImage').src = event.target.value.trim();
+    $('#historyPreviewName').textContent = $('#historyProductName').value || 'Product preview';
+    $('#historyFetchPreview').classList.remove('hidden');
+  });
+  $('#getHistoryProductDetails').addEventListener('click', async () => {
+    const url = extractProductUrl($('#historyProductUrl').value);
+    if (!url) return;
+    $('#historyProductUrl').value = url;
+    const button = $('#getHistoryProductDetails');
+    button.disabled = true;
+    button.textContent = 'Getting details…';
+    $('#historyFetchStatus').textContent = 'Reading the product page…';
+    $('#historyFetchStatus').classList.remove('error');
+    revealHistoryFields();
+    try {
+      const response = await fetch('./api/product-preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+      const product = await response.json();
+      if (!response.ok) throw new Error(product.error || 'Product details unavailable.');
+      if (product.name) $('#historyProductName').value = product.name;
+      if (product.price !== null && product.price !== undefined) $('#historyProductPrice').value = product.price;
+      if (product.image) {
+        pendingHistoryImageId = null;
+        pendingHistoryImagePromise = null;
+        $('#historyProductImage').value = product.image;
+        $('#historyPreviewImage').src = product.image;
+        $('#historyPreviewName').textContent = product.name || 'Product preview';
+        $('#historyFetchPreview').classList.remove('hidden');
+      }
+      $('#historyFetchStatus').textContent = 'Details added. Check and edit anything before saving.';
+    } catch (error) {
+      $('#historyFetchStatus').textContent = `${error.message} Upload a screenshot or complete the details manually.`;
+      $('#historyFetchStatus').classList.add('error');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Get product details';
+    }
+  });
+  if (location.hash === '#add') openHistoryAdd();
+  $('#historyAddForm').addEventListener('submit', async e => {
     e.preventDefault();
+    if (pendingHistoryImagePromise) {
+      $('#historyFetchStatus').textContent = 'Finishing your screenshot…';
+      try { pendingHistoryImageId = await pendingHistoryImagePromise; } catch (error) { pendingHistoryImageId = null; }
+    }
     const fd = new FormData(e.target);
     const status = fd.get('status');
     const price = Number(fd.get('price'));
     historyItems[status].unshift({
       id: Date.now(), name: fd.get('name'), status, price, saved: price,
-      image: fd.get('image') || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80',
-      productUrl: fd.get('productUrl'), date: new Date().toISOString().slice(0, 10),
-      collectionId: null, favorite: false, favoriteCount: 0,
+      image: fd.get('image') || 'assets/product-placeholder.svg', imageId: pendingHistoryImageId,
+      productUrl: extractProductUrl(fd.get('productUrl')), date: new Date().toISOString().slice(0, 10),
+      collectionId: fd.get('collectionId') || null, favorite: false, favoriteCount: 0,
       wishlistDays: fd.get('wishlistDays') === '' ? null : Number(fd.get('wishlistDays')),
       wantCount: fd.get('wantCount') === '' ? null : Number(fd.get('wantCount')),
       satisfaction: Number(fd.get('satisfaction')) || 0, reflection: fd.get('reflection')
@@ -1043,7 +1269,7 @@ function initHistory() {
     persistHistoryState();
     active = status;
     $$('.history-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === active));
-    e.target.reset(); historyOutcomeUi.refresh(); $('#historyAddModal').classList.remove('open'); render(); toast('Added to your history.');
+    resetHistoryAdd(); $('#historyAddModal').classList.remove('open'); render(); toast('Added to your history.');
   });
 
   function openHistoryItem(id) {
@@ -1051,11 +1277,12 @@ function initHistory() {
     const modal = $('#historyDetailModal');
     const bought = item.status === 'bought';
     const wishlistDays = item.wishlistDays ?? 0;
+    const collection = collections.find(entry => entry.id === item.collectionId);
     const productLink = item.productUrl ? `<a class="open-product-button" href="${item.productUrl}" target="_blank" rel="noopener">Open Product ↗</a>` : '';
     const outcomeContent = bought
       ? `<div class="outcome-record bought-record"><span>Purchase record</span><strong>Waited ${wishlistDays} days, then bought it.</strong><small>${item.date || 'Recently purchased'}</small></div><section class="purchase-review"><div class="review-heading"><div><span>Shopping satisfaction</span><h3>Your experience</h3></div>${starsTemplate(item.satisfaction || 0, true, item.id)}</div>${item.reflection ? `<div class="comment-display" id="historyCommentDisplay"><p>${escapeHtml(item.reflection)}</p><button class="button ghost" id="editHistoryComment">Edit comment</button></div>` : ''}<form class="experience-form ${item.reflection ? '' : 'open'}" id="historyExperienceForm"><label>Comment<textarea id="historyExperienceComment" rows="3" placeholder="How did this purchase feel?">${escapeHtml(item.reflection || '')}</textarea></label><button class="button secondary" type="submit">${item.reflection ? 'Update experience' : 'Save experience'}</button></form></section><div class="detail-edit-row"><button class="detail-edit-button" id="editHistoryRecord">✎ Edit record</button></div>`
       : `<div class="outcome-record letgo-record"><span>Let-go record</span><strong>You waited ${wishlistDays} days, then let it go.</strong><small>${formatMoney(item.saved || item.price)} stayed with you</small></div><div class="modal-actions"><button class="button secondary" id="restoreHistoryWish">Restore to wishlist</button><button class="detail-edit-button" id="editHistoryRecord">✎ Edit</button></div>`;
-    $('#historyDetailContent').innerHTML = `<button class="icon-button close detail-close" id="closeHistoryDetail" aria-label="Close">×</button><div class="detail-image-stage"><img src="${item.image}" alt="${escapeHtml(item.name)}"></div><div class="detail-secondary"><div class="detail-heading"><div><span class="collection-label">${bought ? 'Bought' : 'Let go'}</span><h2>${escapeHtml(item.name)}</h2></div><button class="detail-favorite ${item.favorite ? 'on' : ''}" id="toggleHistoryFavorite" aria-label="Toggle favorite">${item.favorite ? '♥' : '♡'}</button></div><div class="detail-commerce-row"><div class="price-row"><span class="price">${formatMoney(item.price || item.saved)}</span></div>${productLink}</div>${outcomeContent}</div>`;
+    $('#historyDetailContent').innerHTML = `<button class="icon-button close detail-close" id="closeHistoryDetail" aria-label="Close">×</button><div class="detail-image-stage"><img ${imageAttributes(item)} alt="${escapeHtml(item.name)}"></div><div class="detail-secondary"><div class="detail-heading"><div><span class="collection-label">${bought ? 'Bought' : 'Let go'}${collection ? ` · ${escapeHtml(collection.name)}` : ''}</span><h2>${escapeHtml(item.name)}</h2></div><button class="detail-favorite ${item.favorite ? 'on' : ''}" id="toggleHistoryFavorite" aria-label="Toggle favorite">${item.favorite ? '♥' : '♡'}</button></div><div class="detail-commerce-row"><div class="price-row"><span class="price">${formatMoney(item.price || item.saved)}</span></div>${productLink}</div>${outcomeContent}</div>`;
     modal.classList.add('open');
     $('#closeHistoryDetail').onclick = () => modal.classList.remove('open');
     $('#toggleHistoryFavorite').onclick = () => {
@@ -1086,17 +1313,18 @@ function initHistory() {
       };
     } else {
       $('#restoreHistoryWish').onclick = () => {
-        const index = historyItems.letGo.indexOf(item);
+        const restored = { ...item, status: 'waiting', addedAt: new Date(Date.now() - Math.max(0, wishlistDays - 1) * 86400000).toISOString(), ultimateSavedTransaction: null };
+        WAITLIST_STORE.update(state => {
+          state.letGo = state.letGo.filter(entry => entry.id !== item.id);
+          state.wishlist = [restored, ...state.wishlist.filter(entry => entry.id !== item.id)];
+          if (item.ultimateSavedTransaction) {
+            const bucket = state.ultimateBuckets.find(entry => entry.id === item.ultimateSavedTransaction.bucketId);
+            if (bucket) bucket.points = Math.max(0, bucket.points - item.ultimateSavedTransaction.amount);
+          }
+          return state;
+        });
+        const index = historyItems.letGo.findIndex(entry => entry.id === item.id);
         if (index >= 0) historyItems.letGo.splice(index, 1);
-        item.status = 'waiting';
-        item.addedAt = new Date(Date.now() - wishlistDays * 86400000).toISOString();
-        if (item.ultimateSavedTransaction) {
-          const bucket = WAITLIST_MOCK.ultimateBuckets.find(entry => entry.id === item.ultimateSavedTransaction.bucketId);
-          if (bucket) bucket.points = Math.max(0, bucket.points - item.ultimateSavedTransaction.amount);
-          item.ultimateSavedTransaction = null;
-        }
-        WAITLIST_MOCK.wishlist.unshift(item);
-        persistHistoryState();
         modal.classList.remove('open');
         render();
         toast('Restored to your wishlist.');
@@ -1106,7 +1334,8 @@ function initHistory() {
 
   function openHistoryEdit(item) {
     const modal = $('#historyDetailModal');
-    $('#historyDetailContent').innerHTML = `<button class="icon-button close" id="closeHistoryEdit" aria-label="Close">×</button><p class="eyebrow">Edit record</p><h2>${escapeHtml(item.name)}</h2><form class="form-grid" id="historyEditForm"><label class="full">Product name<input name="name" value="${escapeHtml(item.name)}" required></label><label>Price<input name="price" type="number" min="0" step="0.01" value="${item.price || item.saved}" required></label><label>Days on wishlist<input name="wishlistDays" type="number" min="0" value="${item.wishlistDays ?? ''}"></label><label class="full">Product URL <span class="optional">Optional</span><input name="productUrl" type="url" value="${escapeHtml(item.productUrl || '')}"></label><label class="full">Image URL <span class="optional">Optional</span><input name="image" type="url" value="${escapeHtml(item.image || '')}"></label><label class="full">Shopping review <span class="optional">Optional</span><textarea name="reflection" rows="3">${escapeHtml(item.reflection || '')}</textarea></label><button class="button full" type="submit">Save changes</button></form>`;
+    $('#historyDetailContent').innerHTML = `<button class="icon-button close" id="closeHistoryEdit" aria-label="Close">×</button><p class="eyebrow">Edit record</p><h2>${escapeHtml(item.name)}</h2><form class="form-grid" id="historyEditForm"><label class="full">Product name<input name="name" value="${escapeHtml(item.name)}" required></label><label>Price<input name="price" type="number" min="0" step="0.01" value="${item.price || item.saved}" required></label><label>Days on wishlist<input name="wishlistDays" type="number" min="0" value="${item.wishlistDays ?? ''}"></label><label class="full">Collection <span class="optional">Optional</span><select name="collectionId"><option value="">No collection</option>${collections.map(collection => `<option value="${collection.id}" ${collection.id === item.collectionId ? 'selected' : ''}>${escapeHtml(collection.name)}</option>`).join('')}</select></label><label class="full">Product URL <span class="optional">Optional</span><input name="productUrl" type="url" value="${escapeHtml(item.productUrl || '')}"></label><label class="full">Image URL <span class="optional">Optional</span><input name="image" type="url" value="${escapeHtml(item.image || '')}"></label><label class="full">Shopping review <span class="optional">Optional</span><textarea name="reflection" rows="3">${escapeHtml(item.reflection || '')}</textarea></label><button class="button full" type="submit">Save changes</button></form>`;
+    enhanceStandaloneSelect($('#historyEditForm select[name="collectionId"]'));
     $('#closeHistoryEdit').onclick = () => modal.classList.remove('open');
     $('#historyEditForm').onsubmit = event => {
       event.preventDefault();
@@ -1115,8 +1344,11 @@ function initHistory() {
       item.price = Number(data.get('price'));
       if (item.status === 'letGo') item.saved = item.price;
       item.wishlistDays = data.get('wishlistDays') === '' ? null : Number(data.get('wishlistDays'));
+      item.collectionId = data.get('collectionId') || null;
       item.productUrl = data.get('productUrl');
-      item.image = data.get('image') || item.image;
+      const editedImage = data.get('image');
+      if (editedImage && editedImage !== item.image) item.imageId = null;
+      item.image = editedImage || item.image;
       item.reflection = data.get('reflection').trim();
       persistHistoryState();
       modal.classList.remove('open');
@@ -1155,7 +1387,7 @@ function initMemory() {
   const render = () => {
     if (!items[index]) { shell.innerHTML = '<div class="memory-card"><h2>You’ve checked in with everything.</h2><p>Nothing needs an answer right now.</p><button class="button" onclick="location.reload()">Review again</button></div>'; return; }
     const item = items[index];
-    shell.innerHTML = `<div class="memory-card"><img src="${item.image}" alt="${item.name}"><p class="eyebrow">Card ${index+1} of ${items.length}</p><h2>${item.name}</h2><p>${formatMoney(item.price)} · waiting ${daysSince(item.addedAt)} days</p><label><input type="checkbox" id="syncChoice" ${WAITLIST_MOCK.settings?.syncMemoryChoices !== false ? 'checked' : ''}> Update my wishlist with this choice</label><div class="memory-actions"><button data-choice="want" class="want">Want</button><button data-choice="neutral">Neutral</button><button data-choice="letgo">Let go</button></div><div class="progress-dots">${items.map((_,i)=>`<span class="${i===index?'active':''}"></span>`).join('')}</div></div>`;
+    shell.innerHTML = `<div class="memory-card"><img ${imageAttributes(item)} alt="${escapeHtml(item.name)}"><p class="eyebrow">Card ${index+1} of ${items.length}</p><h2>${item.name}</h2><p>${formatMoney(item.price)} · waiting ${daysSince(item.addedAt)} days</p><label><input type="checkbox" id="syncChoice" ${WAITLIST_MOCK.settings?.syncMemoryChoices !== false ? 'checked' : ''}> Update my wishlist with this choice</label><div class="memory-actions"><button data-choice="want" class="want">Want</button><button data-choice="neutral">Neutral</button><button data-choice="letgo">Let go</button></div><div class="progress-dots">${items.map((_,i)=>`<span class="${i===index?'active':''}"></span>`).join('')}</div></div>`;
     $$('[data-choice]', shell).forEach(btn => btn.addEventListener('click', () => {
       const sync = $('#syncChoice').checked;
       if (sync && btn.dataset.choice === 'want') {
@@ -1277,7 +1509,18 @@ function initAccount() {
 
 function setupPwa() {
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    const register = () => navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
+    const register = () => navigator.serviceWorker.register('./service-worker.js').then(registration => {
+      registration.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') registration.update().catch(() => {});
+      });
+    }).catch(() => {});
     document.readyState === 'complete' ? register() : addEventListener('load', register, { once: true });
   }
   let installPrompt = null;
@@ -1297,6 +1540,7 @@ function setupPwa() {
 
 (async function boot(){
   setupPwa();
+  watchLocalImages();
   await Promise.all([loadPartial('#header-root', 'partials/header.html'), loadPartial('#footer-root', 'partials/footer.html')]);
   ensureQuickNav(); activateNav(); setupTheme(); initWishlist(); initHistory(); initMemory(); initUltimate(); initAccount();
 })();

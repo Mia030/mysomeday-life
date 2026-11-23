@@ -16,7 +16,7 @@
   <div id="header-root"></div>
   <main class="page history-page">
     <div class="history-compact-heading"><button class="history-back-button" id="historyBack" type="button" aria-label="Back">←</button><h1>History</h1></div>
-    <div class="toolbar"><div class="segmented"><button class="history-tab active" data-tab="bought">Bought</button><button class="history-tab" data-tab="letGo">Let go</button></div></div>
+    <div class="toolbar history-toolbar"><div class="segmented"><button class="history-tab active" data-tab="bought">Bought</button><button class="history-tab" data-tab="letGo">Let go</button></div><select id="historyCollectionFilter" aria-label="Filter history by collection"><option value="all">All collections</option></select></div>
     <section id="historyList" class="history-list"></section>
   </main>
   <button class="floating-add" id="openHistoryAdd" aria-label="Add history item">+</button>
@@ -25,11 +25,15 @@
       <button class="icon-button close" id="closeHistoryAdd" aria-label="Close">×</button>
       <h2>Add to history</h2>
       <form id="historyAddForm" class="form-grid">
-        <label class="full">Product name<input name="name" required></label>
+        <label class="full">Product link <span class="optional">Optional</span><span class="input-with-clear"><input id="historyProductUrl" name="productUrl" type="text" inputmode="url" placeholder="Paste a link or shared product text"><button id="clearHistoryProductUrl" type="button" aria-label="Clear product link">×</button></span></label>
+        <div class="product-fetch-actions full"><button class="button secondary hidden" id="getHistoryProductDetails" type="button">Get product details</button><label class="button ghost screenshot-upload-button" for="historyScreenshot">Upload screenshot</label><input class="visually-hidden" id="historyScreenshot" type="file" accept="image/*"><button class="button ghost" id="historyAddManually" type="button">Add manually</button><span id="historyFetchStatus" aria-live="polite"></span></div>
+        <div class="product-fetch-preview full hidden" id="historyFetchPreview"><img id="historyPreviewImage" alt="Product preview"><div><span>Product found</span><strong id="historyPreviewName"></strong></div></div>
+        <div class="history-add-fields full hidden" id="historyAddFields"><div class="form-grid">
+        <label class="full">Product name<input id="historyProductName" name="name" required></label>
         <label>Outcome<select name="status" id="historyOutcome"><option value="bought">Bought</option><option value="letGo">Let go</option></select></label>
-        <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
-        <label class="full">Product link <span class="optional">Optional</span><input name="productUrl" type="url" placeholder="https://"></label>
-        <label class="full">Image URL <span class="optional">Optional</span><input name="image" type="url" placeholder="https://"></label>
+        <label>Price<input id="historyProductPrice" name="price" type="number" min="0" step="0.01" required></label>
+        <label class="full">Collection <span class="optional">Optional</span><select name="collectionId" id="historyCollectionSelect"></select></label>
+        <label class="full">Image URL <span class="optional">Optional</span><input id="historyProductImage" name="image" type="url" placeholder="https://"></label>
         <label>Days on wishlist <span class="optional">Optional</span><input name="wishlistDays" type="number" min="0" placeholder="e.g. 14"></label>
         <label>Times liked <span class="optional">Optional</span><input name="wantCount" type="number" min="0" placeholder="e.g. 3"></label>
         <fieldset class="rating-field full">
@@ -37,7 +41,7 @@
           <div class="rating-input" aria-label="Rating"><input type="radio" name="satisfaction" id="rate5" value="5"><label for="rate5">★</label><input type="radio" name="satisfaction" id="rate4" value="4"><label for="rate4">★</label><input type="radio" name="satisfaction" id="rate3" value="3"><label for="rate3">★</label><input type="radio" name="satisfaction" id="rate2" value="2"><label for="rate2">★</label><input type="radio" name="satisfaction" id="rate1" value="1"><label for="rate1">★</label></div>
         </fieldset>
         <label class="full compact-note">Shopping review <span class="optional">Optional</span><textarea name="reflection" rows="2" placeholder="How did this purchase feel?"></textarea></label>
-        <button class="button full" type="submit">Add to history</button>
+        <button class="button full" type="submit">Add to history</button></div></div>
       </form>
     </div>
   </div>

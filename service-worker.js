@@ -1,4 +1,4 @@
-const CACHE_NAME = 'waitlist-v2-shell-8';
+const CACHE_NAME = 'waitlist-v2-shell-11';
 const APP_SHELL = [
   './wishlist.html',
   './history.html',

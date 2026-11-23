@@ -103,7 +103,7 @@
       <h2>Add to wishlist</h2>
       <form id="addForm" class="form-grid">
         <label class="full">Product link <span class="optional">Optional</span><span class="input-with-clear"><input id="addProductUrl" name="productUrl" type="text" inputmode="url" placeholder="Paste a link or shared product text"><button id="clearProductUrl" type="button" aria-label="Clear product link">×</button></span></label>
-        <div class="product-fetch-actions full"><button class="button secondary hidden" id="getProductDetails" type="button">Get product details</button><button class="button ghost" id="addProductManually" type="button">Add manually</button><span id="productFetchStatus" aria-live="polite"></span></div>
+        <div class="product-fetch-actions full"><button class="button secondary hidden" id="getProductDetails" type="button">Get product details</button><label class="button ghost screenshot-upload-button" for="wishlistScreenshot">Upload screenshot</label><input class="visually-hidden" id="wishlistScreenshot" type="file" accept="image/*"><button class="button ghost" id="addProductManually" type="button">Add manually</button><span id="productFetchStatus" aria-live="polite"></span></div>
         <div class="product-fetch-preview full hidden" id="productFetchPreview"><img id="productPreviewImage" alt="Product preview"><div><span>Product found</span><strong id="productPreviewName"></strong></div></div>
         <div class="add-item-fields full hidden" id="addItemFields">
           <div class="form-grid">
